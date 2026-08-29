@@ -1,0 +1,141 @@
+/*
+    vote_hud - the live map vote. Shell comes from hud_shared; only the rows are specific.
+
+    NOT INTERACTIVE, on purpose. The panel takes no mouse (CaptureInput false on the contract,
+    hittest false on every element) and hides no HUD, so players carry on playing while it is up.
+    Voting is done in chat, which is why there is not a single Button in the layout.
+
+    WIDTH: root 300. Body padding 12 each side -> 276 usable per row.
+*/
+
+.vote-root {
+    width: 300px;
+
+    /*
+        Left-centre, and it slides in from off-screen left. hud_shared has no anchor for this
+        combination, so it is defined here rather than added to a file four other addons share.
+        The reveal transform overrides hud-root's translateY, which would otherwise fight it.
+    */
+    horizontal-align: left;
+    vertical-align: center;
+    margin-left: 24px;
+
+    transform: translateX(-380px);
+    transition-property: opacity, transform;
+    transition-duration: 0.22s;
+    transition-timing-function: ease-out;
+}
+.vote-root.show {
+    opacity: 1;
+    transform: translateX(0px);
+}
+
+.vote-body {
+    flow-children: down;
+    width: 100%;
+    padding: 12px;
+}
+
+.vote-row {
+    flow-children: right;
+    width: 100%;
+    height: 34px;
+    margin-bottom: 4px;
+    padding: 0px 6px;
+    background-color: #ffffff08;
+    border-left: 2px solid #00000000;
+    transition-property: background-color, border-left-color;
+    transition-duration: 0.15s;
+    transition-timing-function: ease-in-out;
+}
+/* The map currently winning. Toggled by the plugin as votes come in. */
+.vote-row.leading {
+    background-color: #f0a53118;
+    border-left-color: #f0a531;
+}
+
+.vote-key {
+    width: 22px;
+    font-family: Stratum2 Mono;
+    font-size: 12px;
+    color: #9aa3ad;
+    vertical-align: center;
+}
+.vote-row.leading .vote-key { color: #f0a531; }
+
+.vote-mid {
+    flow-children: down;
+    width: fill-parent-flow(1.0);
+    vertical-align: center;
+}
+.vote-name {
+    width: 100%;
+    font-family: Stratum2 Regular;
+    font-size: 12px;
+    color: #ffffff;
+    text-overflow: ellipsis;
+}
+
+.vote-track {
+    width: 100%;
+    height: 4px;
+    margin-top: 3px;
+    background-color: #ffffff12;
+}
+/*
+    Width is set by class, not by a value: the server can only toggle classes, so the bar comes in
+    5% steps. Twenty-one of them, w0 through w20.
+*/
+.vote-bar {
+    width: 0%;
+    height: 4px;
+    background-color: #5a636d;
+    transition-property: width, background-color;
+    transition-duration: 0.25s;
+    transition-timing-function: ease-out;
+}
+.vote-row.leading .vote-bar { background-color: #f0a531; }
+
+.vote-pct {
+    width: 38px;
+    font-family: Stratum2 Mono;
+    font-size: 11px;
+    color: #aab2bc;
+    text-align: right;
+    vertical-align: center;
+}
+.vote-row.leading .vote-pct { color: #f0a531; }
+
+/*
+    hud-hint already fills the footer row, so the countdown just sits after it and right-aligns
+    itself. Mono so the digits do not shuffle the layout as they tick down.
+*/
+.vote-time {
+    font-family: Stratum2 Mono;
+    font-size: 11px;
+    color: #f0a531;
+    text-align: right;
+    vertical-align: center;
+}
+
+.vote-bar.w0 { width: 0%; }
+.vote-bar.w1 { width: 5%; }
+.vote-bar.w2 { width: 10%; }
+.vote-bar.w3 { width: 15%; }
+.vote-bar.w4 { width: 20%; }
+.vote-bar.w5 { width: 25%; }
+.vote-bar.w6 { width: 30%; }
+.vote-bar.w7 { width: 35%; }
+.vote-bar.w8 { width: 40%; }
+.vote-bar.w9 { width: 45%; }
+.vote-bar.w10 { width: 50%; }
+.vote-bar.w11 { width: 55%; }
+.vote-bar.w12 { width: 60%; }
+.vote-bar.w13 { width: 65%; }
+.vote-bar.w14 { width: 70%; }
+.vote-bar.w15 { width: 75%; }
+.vote-bar.w16 { width: 80%; }
+.vote-bar.w17 { width: 85%; }
+.vote-bar.w18 { width: 90%; }
+.vote-bar.w19 { width: 95%; }
+.vote-bar.w20 { width: 100%; }

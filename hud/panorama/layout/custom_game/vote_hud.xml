@@ -1,0 +1,118 @@
+<root>
+	<styles>
+		<include src="s2r://panorama/styles/custom_game/hud_shared.vcss_c" />
+		<include src="s2r://panorama/styles/custom_game/vote_hud.vcss_c" />
+	</styles>
+
+	<!--
+		Live map vote. Deliberately NOT interactive: it takes no mouse and hides nothing, so
+		players keep playing while it is up. Voting happens in chat (!1 / /1), which is why there
+		is no button anywhere in here - every row is a Panel, not a Button.
+
+		DRIVEN BY:
+		  menu_title / menu_subtitle        {s:}   - written by the library from Title/Subtitle
+		  vote_hint / vote_time             {s:}   - footer hint and the countdown
+		  opt{i}            hidden                  - unused row collapses
+		  opt{i}_key/name/pct {s:}                  - 1., map name, "42%"
+		  opt{i}_bar        w0..w20                 - bar width, in 5% steps
+		  opt{i}            leading                 - highlights the current winner
+	-->
+	<Panel class="hud-screen" hittest="false">
+		<Panel id="PanoramaRoot" class="hud-root hud-card accent-gold vote-root" hittest="false">
+
+			<Panel class="hud-head" hittest="false">
+				<Label class="hud-title" text="{s:menu_title}" />
+				<Label class="hud-tag" text="{s:menu_subtitle}" />
+			</Panel>
+
+			<Panel class="vote-body" hittest="false">
+				<Panel id="opt0" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt0_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt0_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt0_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt0_pct}" />
+				</Panel>
+				<Panel id="opt1" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt1_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt1_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt1_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt1_pct}" />
+				</Panel>
+				<Panel id="opt2" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt2_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt2_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt2_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt2_pct}" />
+				</Panel>
+				<Panel id="opt3" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt3_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt3_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt3_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt3_pct}" />
+				</Panel>
+				<Panel id="opt4" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt4_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt4_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt4_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt4_pct}" />
+				</Panel>
+				<Panel id="opt5" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt5_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt5_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt5_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt5_pct}" />
+				</Panel>
+				<Panel id="opt6" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt6_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt6_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt6_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt6_pct}" />
+				</Panel>
+				<Panel id="opt7" class="vote-row hidden" hittest="false">
+					<Label class="vote-key" text="{s:opt7_key}" />
+					<Panel class="vote-mid" hittest="false">
+						<Label class="vote-name" text="{s:opt7_name}" />
+						<Panel class="vote-track" hittest="false">
+							<Panel id="opt7_bar" class="vote-bar" hittest="false" />
+						</Panel>
+					</Panel>
+					<Label class="vote-pct" text="{s:opt7_pct}" />
+				</Panel>
+			</Panel>
+
+			<Panel class="hud-foot" hittest="false">
+				<Label class="hud-hint" text="{s:vote_hint}" />
+				<Label class="vote-time" text="{s:vote_time}" />
+			</Panel>
+
+		</Panel>
+	</Panel>
+</root>

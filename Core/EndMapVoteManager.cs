@@ -1,4 +1,5 @@
 using CounterStrikeSharp.API;
+using PanoramaManager;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -49,7 +50,14 @@ namespace cs2_rockthevote
         public IReadOnlyDictionary<string, int> CurrentVotes => Votes;
 
         private List<KeyValuePair<string, int>> _sortedTopVotes = new();
+
+        /// <summary>The Panorama vote card, or null when it is disabled in config or failed to
+        /// start. Null is the fallback to the configured MenuType.</summary>
+        public VotePanel? Hud { get; private set; }
         public IReadOnlyList<KeyValuePair<string, int>> SortedTopVotes => _sortedTopVotes;
+
+        /// <summary>Redraws the vote card. Called wherever the tallies change.</summary>
+        private void RefreshHud() => Hud?.Update(Votes);
 
         private void RebuildSortedTopVotes()
         {
@@ -57,6 +65,10 @@ namespace cs2_rockthevote
                 .OrderByDescending(x => x.Value)
                 .Take(MaxOptionsHud)
                 .ToList();
+
+            // Every counted vote passes through here, so this is the one place the card is
+            // guaranteed to see a change.
+            RefreshHud();
         }
 
         private GeneralConfig _generalConfig = new();
@@ -91,6 +103,23 @@ namespace cs2_rockthevote
 
         public void OnLoad(Plugin plugin)
         {
+            if (_generalConfig.EnableHudVote && Hud is null)
+            {
+                try
+                {
+                    // Init before Spawn, or Spawn throws and the card silently never exists.
+                    Panorama.Init(plugin);
+                    Hud = new VotePanel();
+                }
+                catch (Exception ex)
+                {
+                    // A missing gamedata signature after a CS2 update must not take the vote down -
+                    // the configured MenuType still works.
+                    _logger.LogError(ex, "[RTV] vote HUD could not start; falling back to the menu.");
+                    Hud = null;
+                }
+            }
+
             _plugin = plugin;
             _plugin.AddCommand("revote", "Re-open the active map vote menu.", OnRevoteCommand);
         }
@@ -458,9 +487,20 @@ namespace cs2_rockthevote
             if (_endMapConfig.EnableRevote)
                 player.PrintToChat(_localizer.LocalizeWithPrefix("emv.revote"));
 
-            // Keep the vote open for the full timer when revotes are enabled.
-            if (!_endMapConfig.EnableRevote && Votes.Values.Sum() >= _canVote)
-                EndVote(isRtv);
+            // Counted by distinct voters, not by the sum of the tallies: with revotes on, the sum
+            // is decremented and re-incremented, so it says nothing about how many people have
+            // actually made a choice.
+            //
+            // Eligible count is recomputed here rather than reusing the snapshot taken when the
+            // vote started. Anyone who connected since then is in _canVote but has had no chance to
+            // vote, and one such joiner keeps the vote open for the full timer even when everybody
+            // present has already voted.
+            if (_endMapConfig.EndWhenEveryoneVoted)
+            {
+                var eligible = Math.Max(1, Math.Min(_canVote, ServerManager.ValidPlayerCount()));
+                if (VotedPlayers.Count >= eligible)
+                    EndVote(isRtv);
+            }
         }
 
         public void PlayerDisconnected(CCSPlayerController? player)
@@ -779,6 +819,10 @@ namespace cs2_rockthevote
                 .Where(p => p != null && p.IsValid)
                 .ToList();
 
+            // Shown once for everyone rather than per player: it is one card driven by shared vote
+            // state, not a menu each player navigates.
+            Hud?.Show(_currentVoteOptions, isRtv, Votes);
+
             foreach (var snapshot in players)
             {
                 int slot = snapshot.Slot;
@@ -788,7 +832,11 @@ namespace cs2_rockthevote
                     if (live is null || !live.ReallyValid())
                         continue;
 
-                    DisplayVoteMenu(live, _currentVoteOptions, voteDuration, isRtv, allowRevote: false);
+                    // The HUD replaces the interactive menu entirely - showing both would put a
+                    // WasdMenu back over the top and take the movement keys the HUD exists to leave
+                    // alone.
+                    if (Hud is null)
+                        DisplayVoteMenu(live, _currentVoteOptions, voteDuration, isRtv, allowRevote: false);
 
                     if (_endMapConfig.SoundEnabled)
                     {
@@ -827,6 +875,8 @@ namespace cs2_rockthevote
             Timer = _plugin?.AddTimer(1.0F, () =>
             {
                 TimeLeft = (int)Math.Ceiling(Math.Max(0.0, voteDeadline - Server.CurrentTime));
+                Hud?.SetTimeLeft(TimeLeft);
+
                 if (TimeLeft <= 0)
                 {
                     _debugLogger.LogInformation("[RTV.EndMapVote] Vote-tick timer reached deadline. Deferring EndVote to next frame. isRtv={IsRtv}", isRtv);
@@ -858,6 +908,8 @@ namespace cs2_rockthevote
 
         public void EndVote(bool isRtv)
         {
+            Hud?.Hide();
+
             CloseAllActiveMenus();
 
             KillTimer();

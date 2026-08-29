@@ -203,6 +203,13 @@ namespace cs2_rockthevote
         {
             RegisterStartupCommand("css_reloadrtv", "Reloads the RTV config.", ReloadCommand);
             RegisterStartupCommand("css_rtv", "Votes to rock the vote", OnRTV);
+            RegisterStartupCommand("css_forcertv", "Starts the map vote now, ignoring the vote threshold.", OnForceRtvCommand);
+            RegisterStartupCommand("css_frtv", "Starts the map vote now, ignoring the vote threshold.", OnForceRtvCommand);
+
+            // One per row on the vote card. CounterStrikeSharp routes !1 and /1 in chat to these,
+            // so players vote without the panel ever taking their mouse or movement keys.
+            for (var key = 1; key <= VotePanel.Slots; key++)
+                RegisterStartupCommand($"css_{key}", $"Vote for map option {key}.", OnVoteKeyCommand);
             RegisterStartupCommand("css_reloadmaps", "Reloads the map list from maplist.txt.", OnReloadMapsCommand);
             RegisterStartupCommand("css_nom", "Nominate a map to appear in the vote.", OnNominateCommand);
             RegisterStartupCommand("css_nominate", "Nominate a map to appear in the vote.", OnNominateCommand);

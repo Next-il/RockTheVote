@@ -1,6 +1,7 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Timers;
@@ -19,6 +20,40 @@ namespace cs2_rockthevote
                 return;
             
             _rtvManager.CommandHandler(player);
+        }
+
+        /// <summary>
+        /// Casts a vote for option N on the HUD vote card.
+        ///
+        /// <para>Registered as css_1..css_N rather than read out of chat: CounterStrikeSharp already
+        /// routes <c>!1</c> and <c>/1</c> to the matching css_ command, so this gets both prefixes
+        /// with no say hook, and nothing swallows ordinary chat.</para>
+        /// </summary>
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
+        public void OnVoteKeyCommand(CCSPlayerController? player, CommandInfo command)
+        {
+            if (player is not { IsValid: true }) return;
+
+            var hud = _endMapVoteManager?.Hud;
+            if (hud is null || !hud.IsOpen) return;
+
+            // "css_3" -> 3. The command name is the only place the number lives, so there is nothing
+            // to parse out of the player's message.
+            var name = command.GetArg(0);
+            if (!int.TryParse(name.AsSpan(name.LastIndexOf('_') + 1), out var key)) return;
+
+            var map = hud.MapForKey(key);
+            if (map is null) return;
+
+            _endMapVoteManager.MapVoted(player, map, hud.IsRtv, allowRevote: true);
+        }
+
+        /// <summary>Starts the map vote now, ignoring the vote threshold. Admin only.</summary>
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+        [RequiresPermissions("@css/changemap")]
+        public void OnForceRtvCommand(CCSPlayerController? player, CommandInfo command)
+        {
+            _rtvManager.ForceVote(player, command);
         }
     }
 
@@ -553,6 +588,41 @@ namespace cs2_rockthevote
             StopReminderTimer();
             _endmapVoteManager.StartVote(isRtv: true);
             Server.PrintToChatAll(_localizer.LocalizeWithPrefix("rtv.votes-reached"));
+        }
+
+        /// <summary>
+        /// Starts the map vote immediately, skipping the vote threshold entirely. This is the
+        /// admin override for "everyone wants a new map but we are two votes short".
+        ///
+        /// <para>Refusals are reported rather than silent. StartVote already returns quietly when a
+        /// vote is running, which from a command looks identical to the command not existing.</para>
+        /// </summary>
+        public void ForceVote(CCSPlayerController? player, CommandInfo command)
+        {
+            var who = player?.PlayerName ?? "Console";
+
+            if (_pluginState.MapChangeScheduled)
+            {
+                command.ReplyToCommand(_localizer.LocalizeWithPrefix("rtv.force-map-scheduled"));
+                return;
+            }
+
+            if (_pluginState.EofVoteHappening)
+            {
+                command.ReplyToCommand(_localizer.LocalizeWithPrefix("rtv.force-already-voting"));
+                return;
+            }
+
+            // Same teardown the threshold path does, so a forced vote does not leave the countdown
+            // and reminder running underneath it.
+            if (!_config.AlwaysActive)
+                StopRtvTimer();
+            StopReminderTimer();
+
+            _endmapVoteManager.StartVote(isRtv: true);
+
+            Server.PrintToChatAll(_localizer.LocalizeWithPrefix("rtv.forced", who));
+            _logger.LogInformation("[RTV] {Who} forced a map vote.", who);
         }
 
         private void SendReminder()

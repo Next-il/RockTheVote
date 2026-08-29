@@ -33,6 +33,17 @@ namespace cs2_rockthevote
     {
         public bool Enabled { get; set; } = true;
         public bool EnableRevote {get; set; } = false;
+
+        /// <summary>
+        /// Ends the vote as soon as every eligible player has voted, instead of always running the
+        /// full timer.
+        ///
+        /// <para>Independent of <see cref="EnableRevote"/> on purpose. The two used to be one
+        /// setting, which forced a choice between "players may change their mind" and "do not sit
+        /// on a finished vote" - with the HUD vote there is no reason both cannot be true, since a
+        /// revote is just another !n while the card is up.</para>
+        /// </summary>
+        public bool EndWhenEveryoneVoted { get; set; } = true;
         public int MapsToShow { get; set; } = 6;
         public string MenuType { get; set; } = "WasdMenu";
         public bool ChangeMapImmediately { get; set; } = false;
@@ -112,6 +123,13 @@ namespace cs2_rockthevote
 
         [JsonIgnore]
         public string[] AdminPermissions => PermissionUtility.Parse(AdminPermission);
+
+        /// <summary>
+        /// Shows the live vote as a Panorama card instead of the configured MenuType. It takes no
+        /// mouse and captures no keys, so players keep playing through the vote; they vote with
+        /// !1 / /1 in chat. Applies to both the end-of-map vote and RTV.
+        /// </summary>
+        public bool EnableHudVote { get; set; } = true;
 
         public bool DebugLogging { get; set; } = false;
         public int MaxMapExtensions { get; set; } = 2;

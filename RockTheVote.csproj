@@ -23,6 +23,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Copies next to the plugin: each CounterStrikeSharp plugin loads through a context that
+         probes its own folder. -->
+    <Reference Include="PanoramaManager">
+      <HintPath>lib\PanoramaManager.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CounterStrikeSharp.API" Version="1.0.369" />
     <PackageReference Include="CS2MenuManager" Version="1.0.42" />
   </ItemGroup>
