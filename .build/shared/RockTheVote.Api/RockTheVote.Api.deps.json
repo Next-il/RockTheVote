@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "RockTheVote.Api/1.0.0": {
+        "runtime": {
+          "RockTheVote.Api.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "RockTheVote.Api/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

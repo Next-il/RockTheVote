@@ -27,12 +27,19 @@ namespace cs2_rockthevote.Core
         public void OnConfigParsed(Config config)
         {
             _generalConfig = config.General;
+
+            // Capture here as well as in MapLister: the framework's ordering between OnConfigParsed
+            // and OnLoad is not something this plugin should depend on, and the path is unknowable
+            // until one of them has run. Capture is idempotent.
+            PluginPaths.Capture(config);
+            _cooldownFilePath ??= PluginPaths.Resolve("mapcooldown.txt");
         }
 
         public void OnLoad(Plugin plugin)
         {
-            // Lives in plugin root directory
-            _cooldownFilePath = Path.GetFullPath(Path.Combine(plugin.ModulePath, "../mapcooldown.txt"));
+            // Written at runtime, so it must not live in the plugin directory - that is the shared,
+            // often read-only mount. Sits with the config, same as maplist.txt.
+            _cooldownFilePath ??= PluginPaths.Resolve("mapcooldown.txt");
 
             LoadCooldownFromFile();
             RegisterCurrentMap();
@@ -100,6 +107,12 @@ namespace cs2_rockthevote.Core
 
             try
             {
+                // The configs directory exists, but a DataDirectory pointing at a subfolder may not
+                // on a fresh server - and the first write would then fail every map change.
+                var dir = Path.GetDirectoryName(_cooldownFilePath);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+
                 File.WriteAllLines(_cooldownFilePath, mapsOnCoolDown);
             }
             catch (Exception ex)

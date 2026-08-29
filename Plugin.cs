@@ -1,6 +1,7 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
+using CounterStrikeSharp.API.Core.Capabilities;
 using static CounterStrikeSharp.API.Core.Listeners;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Events;
@@ -36,6 +37,7 @@ namespace cs2_rockthevote
         VoteExtendRoundTimeCommand voteExtendRoundTime,
         TimeLeftCommand timeLeft,
         MaplistCommand maplistManager,
+        MapLister mapLister,
         ReloadMapsCommand reloadMapsCommand,
         AFKManager afkManager,
         PluginState pluginState,
@@ -57,6 +59,11 @@ namespace cs2_rockthevote
         private readonly VoteExtendRoundTimeCommand _voteExtendRoundTime = voteExtendRoundTime;
         private readonly TimeLeftCommand _timeLeft = timeLeft;
         private readonly MaplistCommand _maplistManager = maplistManager;
+        private readonly MapLister _mapLister = mapLister;
+
+        /// <summary>Lets other plugins read the map list. Built once - the capability factory is
+        /// called per consumer and must hand back the same instance.</summary>
+        private readonly MapListApiImpl _mapListApi = new(mapLister);
         private readonly ReloadMapsCommand _reloadMapsCommand = reloadMapsCommand;
         private readonly StringLocalizer _localizer = new(stringLocalizer, "rtv.prefix");
         private readonly ILogger<Plugin> _logger = logger;
@@ -75,6 +82,11 @@ namespace cs2_rockthevote
         {
             _dependencyManager.OnPluginLoad(this);
             RegisterListener<OnMapStart>(_dependencyManager.OnMapStart);
+
+            // Registered in Load, not OnAllPluginsLoaded: a consumer that resolves the capability
+            // from its own Load would otherwise find nothing depending on plugin order.
+            Capabilities.RegisterPluginCapability(
+                RockTheVote.Api.MapListApi.Capability, () => _mapListApi);
 
             RegisterPluginCommandsAndEvents();
 

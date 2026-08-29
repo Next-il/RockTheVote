@@ -8,6 +8,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The API project sits in a subfolder, so the default **/*.cs glob would compile its sources
+         into this assembly on top of referencing them. That puts IMapListApi in two assemblies and
+         the cross-plugin cast then fails, looking exactly like RockTheVote is not installed. -->
+    <Compile Remove="RockTheVote.Api\**" />
+    <None Remove="RockTheVote.Api\**" />
+    <Compile Remove=".build\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Private=false: must resolve from addons/counterstrikesharp/shared/ so every plugin sees the
+         same IMapListApi type. -->
+    <ProjectReference Include="RockTheVote.Api\RockTheVote.Api.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CounterStrikeSharp.API" Version="1.0.369" />
     <PackageReference Include="CS2MenuManager" Version="1.0.42" />
   </ItemGroup>

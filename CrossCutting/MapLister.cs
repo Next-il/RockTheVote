@@ -34,22 +34,20 @@ namespace cs2_rockthevote
                 return;
             }
 
-            string mapsFile = Path.GetFullPath(Path.Combine(_plugin.ModulePath, "../maplist.txt"));
-            string exampleFile = Path.GetFullPath(Path.Combine(_plugin.ModulePath, "../maplist.example.txt"));
+            // Beside the plugin's own config file, so each server keeps its own list while sharing
+            // one plugin directory.
+            string? mapsFile = PluginPaths.Resolve("maplist.txt");
 
-            if (!File.Exists(mapsFile))
+            if (mapsFile is null || !File.Exists(mapsFile))
             {
-                _debugLogger.LogError("[RTV.MapLister] Missing required map list file at {MapListPath}.", mapsFile);
-                if (File.Exists(exampleFile))
+                _debugLogger.LogError("[RTV.MapLister] No maplist.txt at {Path}.", mapsFile ?? "(config not parsed yet)");
+
+                if (mapsFile is not null)
                 {
-                    _debugLogger.LogInformation(
-                        "[RTV.MapLister] Example map list found at {ExamplePath}. Copy or rename it to {MapListPath}.",
-                        exampleFile,
-                        mapsFile
-                    );
+                    SeedExample();
+                    Server.PrintToConsole($"[RTV] maplist.txt not found. Put it here: {mapsFile}");
                 }
 
-                Server.PrintToConsole($"[RTV] maplist.txt not found at {mapsFile}");
                 EventMapsLoaded?.Invoke(this, Maps);
                 return;
             }
@@ -71,6 +69,7 @@ namespace cs2_rockthevote
 
                 MapsLoaded = true;
                 _debugLogger.LogInformation("[RTV.MapLister] Loaded {MapCount} maps from {MapListPath}.", Maps.Length, mapsFile);
+                Server.PrintToConsole($"[RTV] Loaded {Maps.Length} maps from {mapsFile}");
             }
             catch (Exception ex)
             {
@@ -82,6 +81,38 @@ namespace cs2_rockthevote
             EventMapsLoaded?.Invoke(this, Maps);
         }
 
+        /// <summary>
+        /// Drops maplist.example.txt into the preferred location on a server that has no map list
+        /// anywhere. Without this the admin is told a path that does not exist and has to create
+        /// the folder themselves; with it, the file is sitting there ready to be renamed.
+        /// </summary>
+        private void SeedExample()
+        {
+            if (_plugin is null) return;
+
+            try
+            {
+                var target = PluginPaths.Resolve("maplist.example.txt");
+                if (target is null || File.Exists(target)) return;
+
+                var source = Path.GetFullPath(Path.Combine(_plugin.ModulePath, "..", "maplist.example.txt"));
+                if (!File.Exists(source)) return;
+
+                var dir = Path.GetDirectoryName(target);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+
+                File.Copy(source, target);
+                Server.PrintToConsole($"[RTV] Wrote an example list to {target} - rename it to maplist.txt");
+            }
+            catch (Exception ex)
+            {
+                // Seeding is a convenience. A read-only or missing configs directory must not turn
+                // "no map list" into a crash on load.
+                _debugLogger.LogWarning(ex, "[RTV.MapLister] Could not write the example map list.");
+            }
+        }
+
         public void OnMapStart(string _map)
         {
             if (_plugin is not null)
@@ -91,6 +122,7 @@ namespace cs2_rockthevote
         public void OnConfigParsed(Config config)
         {
             _debugLogger = config.General.DebugLogging ? _logger : NullLogger<MapLister>.Instance;
+            PluginPaths.Capture(config);
         }
 
 

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>RockTheVote.Api</AssemblyName>
+    <RootNamespace>RockTheVote.Api</RootNamespace>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\.build\shared\RockTheVote.Api\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <!-- Pinned to RockTheVote's own CounterStrikeSharp version so referencing this API does not
+       force an upgrade on it. The surface used here is just PluginCapability<T>, which is
+       identical across these versions, and consumers on a newer API resolve against whatever
+       they have loaded. -->
+  <ItemGroup>
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.369" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>
