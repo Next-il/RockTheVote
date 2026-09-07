@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +11,7 @@ namespace cs2_rockthevote
         public bool MapsLoaded { get; private set; } = false;
         public event EventHandler<Map[]>? EventMapsLoaded;
         private Plugin? _plugin;
-        private ILogger _debugLogger = NullLogger<MapLister>.Instance;
+        private ILogger _debugLogger = NullLogger.Instance;
 
         public MapLister(ILogger<MapLister> logger)
         {
@@ -30,7 +30,7 @@ namespace cs2_rockthevote
 
             if (_plugin is null)
             {
-                _debugLogger.LogWarning("[RTV.MapLister] LoadMaps called before plugin was assigned.");
+                _logger.LogWarning("[RTV.MapLister] LoadMaps called before plugin was assigned.");
                 return;
             }
 
@@ -40,7 +40,7 @@ namespace cs2_rockthevote
 
             if (mapsFile is null || !File.Exists(mapsFile))
             {
-                _debugLogger.LogError("[RTV.MapLister] No maplist.txt at {Path}.", mapsFile ?? "(config not parsed yet)");
+                _logger.LogError("[RTV.MapLister] No maplist.txt at {Path}.", mapsFile ?? "(config not parsed yet)");
 
                 if (mapsFile is not null)
                 {
@@ -74,8 +74,8 @@ namespace cs2_rockthevote
             catch (Exception ex)
             {
                 Clear();
-                _debugLogger.LogError(ex, "[RTV.MapLister] Failed to load map list from {MapListPath}.", mapsFile);
-                Server.PrintToConsole($"[RTV] Failed to load maplist.txt: {ex.Message}");
+                _logger.LogError(ex, "[RTV.MapLister] Failed to load map list from {MapListPath}. message={Message}", mapsFile, ex.Message);
+                Server.PrintToConsole($"[RTV.MapLister] Failed to load map list from {mapsFile}. message={ex.Message}");
             }
 
             EventMapsLoaded?.Invoke(this, Maps);
@@ -121,7 +121,7 @@ namespace cs2_rockthevote
 
         public void OnConfigParsed(Config config)
         {
-            _debugLogger = config.General.DebugLogging ? _logger : NullLogger<MapLister>.Instance;
+            _debugLogger = DebugLog.For(_logger, config);
             PluginPaths.Capture(config);
         }
 
