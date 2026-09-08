@@ -132,6 +132,7 @@ namespace cs2_rockthevote
         public bool EnableHudVote { get; set; } = true;
 
         public bool DebugLogging { get; set; } = false;
+        public bool ForceMapChange { get; set; } = true;
         public int MaxMapExtensions { get; set; } = 2;
         public string DisableMapExtensions { get; set; } = "";
 
