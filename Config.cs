@@ -131,6 +131,11 @@ namespace cs2_rockthevote
         /// </summary>
         public bool EnableHudVote { get; set; } = true;
 
+        public string ExtendPermission { get; set; } = "@css/changemap";
+
+        [JsonIgnore]
+        public string[] ExtendPermissions => PermissionUtility.Parse(ExtendPermission);
+
         public bool DebugLogging { get; set; } = false;
         public bool ForceMapChange { get; set; } = true;
         public int MaxMapExtensions { get; set; } = 2;
