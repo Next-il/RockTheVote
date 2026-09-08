@@ -322,6 +322,9 @@ namespace cs2_rockthevote
 
         private void CreateIgnoreWinConditionsPollTimer(string winnerMapName, MapChangeTrigger trigger = MapChangeTrigger.IgnoredWinConditions)
         {
+            if (_pluginState.Unloaded)
+                return;
+
             _ignoreWinConditionsPollTimer = _plugin?.AddTimer(1.0F, () =>
             {
                 try { _debugLogger.LogInformation("[RTV.MapChange] Poll tick entry. map={Map} trigger={Trigger}", winnerMapName, trigger); }
@@ -908,6 +911,9 @@ namespace cs2_rockthevote
 
         public void EndVote(bool isRtv)
         {
+            if (_pluginState.Unloaded)
+                return;
+
             Hud?.Hide();
 
             CloseAllActiveMenus();

@@ -708,6 +708,9 @@ namespace cs2_rockthevote
 
                 Server.NextFrame(() =>
                 {
+                    if (_pluginState.Unloaded)
+                        return;
+
                     try
                     {
                         TryPassByThreshold();
