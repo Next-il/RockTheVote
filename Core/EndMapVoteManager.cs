@@ -113,8 +113,8 @@ namespace cs2_rockthevote
                 }
                 catch (Exception ex)
                 {
-                    // A missing gamedata signature after a CS2 update must not take the vote down -
-                    // the configured MenuType still works.
+                    // A HUD that fails to start must not take the vote down - the configured MenuType
+                    // still works.
                     _logger.LogError(ex, "[RTV] vote HUD could not start; falling back to the menu.");
                     Hud = null;
                 }

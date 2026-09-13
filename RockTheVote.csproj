@@ -23,15 +23,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Copies next to the plugin: each CounterStrikeSharp plugin loads through a context that
-         probes its own folder. -->
-    <Reference Include="PanoramaManager">
-      <HintPath>lib\PanoramaManager.dll</HintPath>
-    </Reference>
+    <!-- From nuget.org, copied next to the plugin by CopyPanoramaManager below: each
+         CounterStrikeSharp plugin loads through a context that probes its own folder. Needs
+         CounterStrikeSharp.API 1.0.374 or newer - the package declares it, and a lower pin fails
+         restore with NU1605. -->
+    <PackageReference Include="PanoramaManager" Version="0.4.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.369" />
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.374" />
     <PackageReference Include="CS2MenuManager" Version="1.0.42" />
   </ItemGroup>
 
@@ -47,4 +47,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup> 
+
+  <!-- CopyLocalLockFileAssemblies is off and has to stay off: turning it on copies CounterStrikeSharp.API's
+       whole dependency tree beside the plugin as well. This copies PanoramaManager's dll and nothing else. -->
+  <Target Name="CopyPanoramaManager" AfterTargets="ResolveLockFileCopyLocalFiles">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Include="@(RuntimeCopyLocalItems)"
+                               Condition="'%(RuntimeCopyLocalItems.NuGetPackageId)' == 'PanoramaManager'" />
+    </ItemGroup>
+  </Target>
+
 </Project>

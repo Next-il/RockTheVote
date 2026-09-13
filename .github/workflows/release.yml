@@ -62,6 +62,10 @@ jobs:
           cp "${PLUGIN_OUT}/RockTheVote.dll" "${PLUGIN_DIR}/"
           cp "${PLUGIN_OUT}/RockTheVote.deps.json" "${PLUGIN_DIR}/"
 
+          # PanoramaManager comes from NuGet, not from a separate server install: CounterStrikeSharp
+          # loads it from the plugin's own folder, so without it in the zip the plugin does not load.
+          cp "${PLUGIN_OUT}/PanoramaManager.dll" "${PLUGIN_DIR}/"
+
           # Resources
           cp -r "${PLUGIN_OUT}/lang" "${PLUGIN_DIR}/"
           cp "${PLUGIN_OUT}/maplist.example.txt" "${PLUGIN_DIR}/"
