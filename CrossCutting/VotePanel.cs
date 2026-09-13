@@ -43,14 +43,18 @@ namespace cs2_rockthevote
         {
             _panel = Panorama.Spawn(Layout, new LayoutContract
             {
-                RootPanelId  = "PanoramaRoot",
+                RootPanelId  = "RtvVoteRoot",
                 RevealClass  = "show",
 
                 // The two that matter: it must not take the mouse, and it must not touch the HUD.
                 CaptureInput = false,
                 HideHud      = HideHudFlags.None,
 
-                RowCount     = 1,   // the row pool here is driven directly
+                RowCount     = 0,   // no rowN pool; the rows here are addressed directly
+
+                // Everyone watching a vote sees the same board, so one shared set of strings is
+                // correct here - and it keeps working even where the per-player natives do not.
+                SharedText   = true,
             });
         }
 

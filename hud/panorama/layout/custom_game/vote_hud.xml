@@ -18,7 +18,7 @@
 		  opt{i}            leading                 - highlights the current winner
 	-->
 	<Panel class="hud-screen" hittest="false">
-		<Panel id="PanoramaRoot" class="hud-root hud-card accent-gold vote-root" hittest="false">
+		<Panel id="RtvVoteRoot" class="hud-root hud-card accent-gold vote-root" hittest="false">
 
 			<Panel class="hud-head" hittest="false">
 				<Label class="hud-title" text="{s:menu_title}" />

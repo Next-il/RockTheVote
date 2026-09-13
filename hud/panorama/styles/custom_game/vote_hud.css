@@ -83,14 +83,22 @@
     background-color: #ffffff12;
 }
 /*
-    Width is set by class, not by a value: the server can only toggle classes, so the bar comes in
-    5% steps. Twenty-one of them, w0 through w20.
+    The bar is always full width and is revealed by a clip rectangle. The server can only toggle
+    classes, so the fill still comes in 5% steps - twenty-one of them, w0 through w20 - but the
+    property being stepped is clip, not width.
+
+    Width is the obvious choice and the wrong one here. Writing a dialog variable anywhere in this
+    subtree re-measures the label, re-lays out the row and re-resolves a percentage width against
+    the parent, which restarts the transition. This card rewrites optN_pct and optN_name on every
+    tally change - the same moment the bar is meant to move - so the one update the animation exists
+    for is the one that destroys it. Valve's own note on clip is the tell: it has no impact on
+    layout, and is supported for transitions.
 */
 .vote-bar {
-    width: 0%;
+    width: 100%;
     height: 4px;
     background-color: #5a636d;
-    transition-property: width, background-color;
+    transition-property: clip, background-color;
     transition-duration: 0.25s;
     transition-timing-function: ease-out;
 }
@@ -118,24 +126,24 @@
     vertical-align: center;
 }
 
-.vote-bar.w0 { width: 0%; }
-.vote-bar.w1 { width: 5%; }
-.vote-bar.w2 { width: 10%; }
-.vote-bar.w3 { width: 15%; }
-.vote-bar.w4 { width: 20%; }
-.vote-bar.w5 { width: 25%; }
-.vote-bar.w6 { width: 30%; }
-.vote-bar.w7 { width: 35%; }
-.vote-bar.w8 { width: 40%; }
-.vote-bar.w9 { width: 45%; }
-.vote-bar.w10 { width: 50%; }
-.vote-bar.w11 { width: 55%; }
-.vote-bar.w12 { width: 60%; }
-.vote-bar.w13 { width: 65%; }
-.vote-bar.w14 { width: 70%; }
-.vote-bar.w15 { width: 75%; }
-.vote-bar.w16 { width: 80%; }
-.vote-bar.w17 { width: 85%; }
-.vote-bar.w18 { width: 90%; }
-.vote-bar.w19 { width: 95%; }
-.vote-bar.w20 { width: 100%; }
+.vote-bar.w0 { clip: rect( 0%, 0%, 100%, 0% ); }
+.vote-bar.w1 { clip: rect( 0%, 5%, 100%, 0% ); }
+.vote-bar.w2 { clip: rect( 0%, 10%, 100%, 0% ); }
+.vote-bar.w3 { clip: rect( 0%, 15%, 100%, 0% ); }
+.vote-bar.w4 { clip: rect( 0%, 20%, 100%, 0% ); }
+.vote-bar.w5 { clip: rect( 0%, 25%, 100%, 0% ); }
+.vote-bar.w6 { clip: rect( 0%, 30%, 100%, 0% ); }
+.vote-bar.w7 { clip: rect( 0%, 35%, 100%, 0% ); }
+.vote-bar.w8 { clip: rect( 0%, 40%, 100%, 0% ); }
+.vote-bar.w9 { clip: rect( 0%, 45%, 100%, 0% ); }
+.vote-bar.w10 { clip: rect( 0%, 50%, 100%, 0% ); }
+.vote-bar.w11 { clip: rect( 0%, 55%, 100%, 0% ); }
+.vote-bar.w12 { clip: rect( 0%, 60%, 100%, 0% ); }
+.vote-bar.w13 { clip: rect( 0%, 65%, 100%, 0% ); }
+.vote-bar.w14 { clip: rect( 0%, 70%, 100%, 0% ); }
+.vote-bar.w15 { clip: rect( 0%, 75%, 100%, 0% ); }
+.vote-bar.w16 { clip: rect( 0%, 80%, 100%, 0% ); }
+.vote-bar.w17 { clip: rect( 0%, 85%, 100%, 0% ); }
+.vote-bar.w18 { clip: rect( 0%, 90%, 100%, 0% ); }
+.vote-bar.w19 { clip: rect( 0%, 95%, 100%, 0% ); }
+.vote-bar.w20 { clip: rect( 0%, 100%, 100%, 0% ); }
