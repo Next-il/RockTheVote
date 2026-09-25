@@ -1,7 +1,17 @@
 name: Build and Release
 
 on:
+  # A release for every push to main that changes the plugin - not for docs alone. The tag is
+  # v<ModuleVersion>, with -2, -3 ... when that version was already released
+  push:
+    branches: [ main ]
+    paths-ignore: [ '**.md', 'LICENSE', '.gitignore', 'docs/**' ]
   workflow_dispatch:
+
+# Two pushes landing together would otherwise both see the same tag as free
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   build-and-release:
