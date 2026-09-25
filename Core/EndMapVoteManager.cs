@@ -349,6 +349,12 @@ namespace cs2_rockthevote
                         return;
                     }
 
+                    // The MatchEnd poll only stands in for an empty server, where the last round may
+                    // never end. With players on, CS2 plays that round out and the win panel changes
+                    // the map; firing here would cut it short at the timelimit.
+                    if (trigger == MapChangeTrigger.MatchEnd && ServerManager.ValidPlayerCount() > 0)
+                        return;
+
                     _debugLogger.LogInformation("[RTV.MapChange] Poll tick: computing remaining seconds. map={Map} trigger={Trigger}", winnerMapName, trigger);
                     int remainingSeconds = ComputeRemainingSecondsForIgnoreWinConditions();
                     _debugLogger.LogInformation(
@@ -1050,10 +1056,13 @@ namespace cs2_rockthevote
                             _changeMapManager.ChangeNextMap();
                         }
                     }
-                    else
+                    else if (!_timeLimitManager.UnlimitedTime)
                     {
                         // MatchEnd normally fires via EventCsWinPanelMatch, but that event is not
                         // guaranteed on an empty server, so the fallback poll as a safety net.
+                        // Timelimit servers only: without mp_timelimit the poll has no real
+                        // deadline (it measures RoundTime from match start, which is already past
+                        // after round one) and would change the map right after the vote.
                         _debugLogger.LogInformation(
                             "[RTV.EndMapVote] Arming MatchEnd fallback poll in case EventCsWinPanelMatch never fires. winner={Winner}",
                             winner.Key
