@@ -27,7 +27,7 @@
          CounterStrikeSharp plugin loads through a context that probes its own folder. Needs
          CounterStrikeSharp.API 1.0.374 or newer - the package declares it, and a lower pin fails
          restore with NU1605. -->
-    <PackageReference Include="PanoramaManager" Version="0.4.2" />
+    <PackageReference Include="PanoramaManager" Version="0.4.3" />
   </ItemGroup>
 
   <ItemGroup>
