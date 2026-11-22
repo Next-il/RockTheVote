@@ -83,5 +83,15 @@
 
   "cooldown.check-console": "Maps on cooldown have been printed to your console.",
   "cooldown.none": "There are currently no maps on cooldown.",
-  "cooldown.most-recent": "(most recently played)"
+  "cooldown.most-recent": "(most recently played)",
+
+  // Vote card (Next-il/Votes) for the rtv and extend yes/no votes
+  "rtv.card.eyebrow": "Vote · Rock the vote",
+  "rtv.card.prefix": "",
+  "rtv.card.subject": "Change the map",
+  "rtv.card.passed": "map vote starts now",
+  "extendtime.card.eyebrow": "Vote · Extend the map",
+  "extendtime.card.prefix": "Extend the map by",
+  "extendtime.card.subject": "{0} minutes",
+  "extendtime.card.passed": "map extended by {0} min"
 }

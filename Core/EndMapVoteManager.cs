@@ -831,14 +831,6 @@ namespace cs2_rockthevote
             }
             _noVoteOptionsLogged = false;
 
-            if (_rtvConfig.EnablePanorama)
-            {
-                Server.ExecuteCommand("sv_allow_votes 0");
-                Server.ExecuteCommand("sv_vote_allow_in_warmup 0");
-                Server.ExecuteCommand("sv_vote_allow_spectators 0");
-                Server.ExecuteCommand("sv_vote_count_spectator_votes 0");
-            }
-
             _pluginState.EofVoteHappening = true;
             _currentVoteOptions.AddRange(voteOptions);
             RebuildSortedTopVotes();

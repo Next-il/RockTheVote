@@ -41,7 +41,6 @@ namespace cs2_rockthevote
         ReloadMapsCommand reloadMapsCommand,
         AFKManager afkManager,
         PluginState pluginState,
-        PanoramaVote panoramaVote,
         IStringLocalizer stringLocalizer,
         ILogger<Plugin> logger) : BasePlugin, IPluginConfig<Config>
     {
@@ -69,7 +68,6 @@ namespace cs2_rockthevote
         private readonly StringLocalizer _localizer = new(stringLocalizer, "rtv.prefix");
         private readonly ILogger<Plugin> _logger = logger;
         private readonly PluginState _pluginState = pluginState;
-        private readonly PanoramaVote _panoramaVote = panoramaVote;
         private bool _hasMenuManager = false;
 
 
@@ -91,8 +89,6 @@ namespace cs2_rockthevote
                 RockTheVote.Api.MapListApi.Capability, () => _mapListApi);
 
             RegisterPluginCommandsAndEvents();
-
-            RegisterStartupEvent<EventVoteCast>(OnVoteCast);
         }
         
         public override void OnAllPluginsLoaded(bool hotReload)
@@ -153,12 +149,6 @@ namespace cs2_rockthevote
             {
                 command.ReplyToCommand($"Failed to reload configuration: {ex.Message}");
             }
-        }
-
-        private HookResult OnVoteCast(EventVoteCast @event, GameEventInfo info)
-        {
-            _panoramaVote.VoteCast(@event);
-            return HookResult.Continue;
         }
 
         private HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)

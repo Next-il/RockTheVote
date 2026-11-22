@@ -13,7 +13,8 @@ namespace cs2_rockthevote.CrossCutting
         private readonly ExtendRoundTimeManager _voteExtend;
         private readonly StringLocalizer _localizer;
         private readonly StringBuilder _hudBuilder = new();
-        private readonly bool[] _activeSlots = new bool[VoteConstants.MAXPLAYERS];
+        private const int MaxPlayers = 64;
+        private readonly bool[] _activeSlots = new bool[MaxPlayers];
         private string _emvCountdownText = string.Empty;
         private int _emvCountdownTimeLeft = int.MinValue;
         private string _rtvCountdownText = string.Empty;

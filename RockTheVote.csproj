@@ -23,6 +23,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Next-il/Votes API, the build committed in lib/. Private=false for the same reason: it must resolve
+         from addons/counterstrikesharp/shared/VotesApi/, where the Votes release puts it. A copy beside the
+         plugin gives it its own IVotesApi type and the capability lookup comes back empty. -->
+    <Reference Include="VotesApi">
+      <HintPath>$(MSBuildThisFileDirectory)lib\VotesApi.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- From nuget.org, copied next to the plugin by CopyPanoramaManager below: each
          CounterStrikeSharp plugin loads through a context that probes its own folder. Needs
          CounterStrikeSharp.API 1.0.374 or newer - the package declares it, and a lower pin fails

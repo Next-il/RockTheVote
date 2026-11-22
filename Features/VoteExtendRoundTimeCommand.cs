@@ -5,6 +5,9 @@ using CounterStrikeSharp.API.Modules.Timers;
 using cs2_rockthevote.Core;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using IVotesApi = VotesApi.IVotesApi;
+using YesNoVote = VotesApi.YesNoVote;
+using VoteEndReason = VotesApi.VoteEndReason;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
 namespace cs2_rockthevote
@@ -29,10 +32,9 @@ namespace cs2_rockthevote
         }
     }
 
-    public class VoteExtendRoundTimeCommand(TimeLimitManager timeLimitManager, ExtendRoundTimeManager extendRoundTimeManager, GameRules gameRules, IStringLocalizer stringLocalizer, PluginState pluginState, PanoramaVote panoramaVote, ILogger<VoteExtendRoundTimeCommand> logger) : IPluginDependency<Plugin, Config>
+    public class VoteExtendRoundTimeCommand(TimeLimitManager timeLimitManager, ExtendRoundTimeManager extendRoundTimeManager, GameRules gameRules, IStringLocalizer stringLocalizer, PluginState pluginState, ILogger<VoteExtendRoundTimeCommand> logger) : IPluginDependency<Plugin, Config>
     {
         private readonly ILogger<VoteExtendRoundTimeCommand> _logger = logger;
-        private readonly PanoramaVote _panoramaVote = panoramaVote;
         private TimeLimitManager _timeLimitManager = timeLimitManager;
         private ExtendRoundTimeManager _extendRoundTimeManager = extendRoundTimeManager;
         private readonly GameRules _gameRules = gameRules;
@@ -78,46 +80,53 @@ namespace cs2_rockthevote
                 player.PrintToChat(_localizer.LocalizeWithPrefix("general.validation.warmup"));
                 return;
             }
-            if (_pluginState.RtvVoteHappening || _pluginState.ExtendTimeVoteHappening)
+            if (_pluginState.RtvVoteHappening || _pluginState.ExtendTimeVoteHappening || VotesBridge.IsVoteActive)
             {
                 player.PrintToChat(_localizer.LocalizeWithPrefix("general.vote-in-progress"));
                 return;
             }
             if (!_timeLimitManager.UnlimitedTime)
             {
-                if (!_voteExtendConfig.EnablePanorama)
+                // The yes/no vote runs through Next-il/Votes; without it, the chat vote as before.
+                bool usePanorama = _voteExtendConfig.EnablePanorama && VotesBridge.Api != null;
+                if (_voteExtendConfig.EnablePanorama && !usePanorama)
+                    _logger.LogError("[RTV.VoteExtendTime] VoteExtend.EnablePanorama is on but Next-il/Votes is not loaded (plugins/Votes + shared/VotesApi); using the chat vote instead.");
+
+                if (!usePanorama)
                 {
                     _extendRoundTimeManager.StartExtendVote(_voteExtendConfig);
                 }
-                else if (_voteExtendConfig.EnablePanorama)
+                else if (usePanorama)
                 {
-                    _panoramaVote.Init();
-                    Server.ExecuteCommand("sv_allow_votes 1");
-                    Server.ExecuteCommand("sv_vote_allow_in_warmup 1");
-                    Server.ExecuteCommand("sv_vote_allow_spectators 1");
-                    Server.ExecuteCommand("sv_vote_count_spectator_votes 1");
                     _pluginState.ExtendTimeVoteHappening = true;
+                    int minutes = _generalConfig.RoundTimeExtension;
+                    int pool = Utilities.GetPlayers().Count(p => p is { IsValid: true, IsBot: false, IsHLTV: false });
 
-                    bool voteStarted = _panoramaVote.SendYesNoVoteToAll(
-                        _voteExtendConfig.VoteDuration,
-                        player.Slot, // player.Slot Header = Vote by: playerName. VoteConstants.VOTE_CALLER_SERVER Header = Vote by: Server
-                        "#SFUI_vote_passed_nextlevel_extend",
-                        _localizer.Localize("extendtime.ui-question", _generalConfig.RoundTimeExtension),
-                        VoteResultCallback,
-                        VoteHandlerCallback
-                    );
+                    bool voteStarted = VotesBridge.Api!.StartYesNo(new YesNoVote
+                    {
+                        Owner = "RockTheVote",
+                        Caller = player,
+                        Eyebrow = Card("extendtime.card.eyebrow", "Vote · Extend the map"),
+                        Prefix = Card("extendtime.card.prefix", "Extend the map by"),
+                        Subject = Card("extendtime.card.subject", "{0} minutes", minutes),
+                        DurationSeconds = _voteExtendConfig.VoteDuration,
+                        PassPercent = _voteExtendConfig.VotePercentage,
+                        // The rule as before: yes reaches VotePercentage of everyone; no votes do not count against it.
+                        RequiredYes = Math.Max(1, RequiredYes(pool)),
+                        Decide = tally => tally.Voters > 0 && tally.Yes >= Math.Max(1, RequiredYes(tally.Voters)),
+                        PassedText = Card("extendtime.card.passed", "map extended by {0} min", minutes),
+                        OnEnd = OnExtendVoteEnded,
+                    });
 
                     if (!voteStarted)
                     {
                         _pluginState.ExtendTimeVoteHappening = false;
-                        Server.ExecuteCommand("sv_allow_votes 0");
-                        Server.ExecuteCommand("sv_vote_allow_in_warmup 0");
-                        Server.ExecuteCommand("sv_vote_allow_spectators 0");
-                        Server.ExecuteCommand("sv_vote_count_spectator_votes 0");
-                        _logger.LogWarning("[RTV.VoteExtendTime] Panorama extend vote failed to start; state reset.");
+                        _logger.LogWarning("[RTV.VoteExtendTime] Extend vote failed to start (another vote is running); state reset.");
                         player.PrintToChat(_localizer.LocalizeWithPrefix("general.vote-in-progress"));
                         return;
                     }
+
+                    Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("extendtime.vote-started", _initiatingPlayerName)}");
 
                     if (_voteExtendConfig.EnableCountdown && ConfigValue.Is(_voteExtendConfig.CountdownType, "chat"))
                     {
@@ -135,110 +144,38 @@ namespace cs2_rockthevote
             }
         }
 
-        private bool VoteResultCallback(YesNoVoteInfo info)
+        private int RequiredYes(int pool) => (int)Math.Ceiling(pool * (_voteExtendConfig.VotePercentage / 100.0));
+
+        /// <summary>A card text from the lang file, or the English default when the server's lang file is older.</summary>
+        private string Card(string key, string fallback, params object[] args)
         {
-            int requiredYesVotes = (int)Math.Ceiling(info.num_clients * (_voteExtendConfig.VotePercentage / 100.0));
+            string value = _localizer.Localize(key, args);
+            return value == key ? string.Format(fallback, args) : value;
+        }
+
+        /// <summary>The extend yes/no vote ended (Votes).</summary>
+        private void OnExtendVoteEnded(VotesApi.VoteResult result)
+        {
             _pluginState.ExtendTimeVoteHappening = false;
             _extendRoundTimeManager.KillTimer();
+
+            // Votes cancels a running vote on map change; nothing to report or cool down then.
+            if (result.Reason == VoteEndReason.Cancelled && result.CancelReason == "map change")
+                return;
+
             ActivateCooldown();
 
-            Server.ExecuteCommand("sv_allow_votes 0");
-            Server.ExecuteCommand("sv_vote_allow_in_warmup 0");
-            Server.ExecuteCommand("sv_vote_allow_spectators 0");
-            Server.ExecuteCommand("sv_vote_count_spectator_votes 0");
-
-            if (info.yes_votes >= requiredYesVotes)
+            if (result.Passed)
             {
                 Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed2", _generalConfig.RoundTimeExtension)}");
                 _extendRoundTimeManager.ExtendRoundTime(_generalConfig.RoundTimeExtension);
                 _pluginState.MapExtensionCount++;
-                return true;
+                return;
             }
-            else
-                return false;
-        }
 
-        private void VoteHandlerCallback(YesNoVoteAction action, int param1, int param2)
-        {
-            switch (action)
-            {
-                case YesNoVoteAction.VoteAction_Start:
-                    Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("extendtime.vote-started", _initiatingPlayerName)}");
-                    break;
-
-                case YesNoVoteAction.VoteAction_Vote:
-                    try
-                    {
-                        var vc = _panoramaVote.VoteController;
-                        if (vc != null)
-                        {
-                            if (!vc.IsValid)
-                                return;
-
-                            int potentialVotes = vc.PotentialVotes;
-
-                            if (vc.VoteOptionCount.Length <= (int)CastVote.VOTE_OPTION2)
-                                return;
-
-                            int yesVotes = vc.VoteOptionCount[(int)CastVote.VOTE_OPTION1];
-                            int noVotes = vc.VoteOptionCount[(int)CastVote.VOTE_OPTION2];
-                            int requiredYesVotes = (int)Math.Ceiling(potentialVotes * (_voteExtendConfig.VotePercentage / 100.0));
-
-                            // Early cancel if the vote can no longer pass
-                            if ((potentialVotes - noVotes) < requiredYesVotes)
-                            {
-                                Server.NextFrame(() =>
-                                {
-                                    try
-                                    {
-                                        _panoramaVote.EndVote(YesNoVoteEndReason.VoteEnd_Cancelled, overrideFailCode: 0);
-                                        _pluginState.ExtendTimeVoteHappening = false;
-                                        ActivateCooldown();
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.LogError(ex, "[RTV.VoteExtendTime] Error during vote cancellation: {Message}", ex.Message);
-                                    }
-                                });
-                                return;
-                            }
-
-                            // Early pass if enough yes votes are already in
-                            if (yesVotes >= requiredYesVotes)
-                            {
-                                Server.NextFrame(() =>
-                                {
-                                    try
-                                    {
-                                        _panoramaVote.EndVote(YesNoVoteEndReason.VoteEnd_AllVotes);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.LogError(ex, "[RTV.VoteExtendTime] Error during early vote pass: {Message}", ex.Message);
-                                    }
-                                });
-                                return;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "[RTV.VoteExtendTime] Error processing vote: {Message}", ex.Message);
-                    }
-                    break;
-
-                case YesNoVoteAction.VoteAction_End:
-                    _pluginState.ExtendTimeVoteHappening = false;
-                    if ((YesNoVoteEndReason)param1 == YesNoVoteEndReason.VoteEnd_Cancelled)
-                    {
-                        Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("extendtime.vote-ended.failed2")}");
-                    }
-                    else if ((YesNoVoteEndReason)param1 == YesNoVoteEndReason.VoteEnd_TimeUp)
-                    {
-                        Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("extendtime.vote-ended-no-votes")}");
-                    }
-                    break;
-            }
+            Server.PrintToChatAll(result.Reason == VoteEndReason.TimeUp
+                ? $"{_localizer.LocalizeWithPrefix("extendtime.vote-ended-no-votes")}"
+                : $"{_localizer.LocalizeWithPrefix("extendtime.vote-ended.failed2")}");
         }
 
         private void ActivateCooldown()
@@ -267,10 +204,9 @@ namespace cs2_rockthevote
             if (player == null)
                 return;
 
-            if (!_voteExtendConfig.EnablePanorama)
+            // On the Votes path a leaver is dropped by Votes itself.
+            if (!_voteExtendConfig.EnablePanorama || VotesBridge.Api == null)
                 _extendRoundTimeManager?.RemoveVote(player.Slot);
-            else
-                _panoramaVote.RemovePlayerFromVote(player.Slot);
         }
 
         public void OnLoad(Plugin plugin)

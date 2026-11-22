@@ -8,6 +8,9 @@ using CounterStrikeSharp.API.Modules.Timers;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using IVotesApi = VotesApi.IVotesApi;
+using YesNoVote = VotesApi.YesNoVote;
+using VoteEndReason = VotesApi.VoteEndReason;
 
 namespace cs2_rockthevote
 {
@@ -66,7 +69,6 @@ namespace cs2_rockthevote
         private readonly EndMapVoteManager _endmapVoteManager;
         private readonly PluginState _pluginState;
         private readonly AFKManager _afk;
-        private readonly PanoramaVote _panoramaVote;
         private RtvConfig _config = new();
         private GeneralConfig _generalConfig = new();
         private AsyncVoteManager? _voteManager;
@@ -82,14 +84,13 @@ namespace cs2_rockthevote
         public int TimeLeft => (int)Math.Max(0, (_rtvEndTime - DateTime.UtcNow).TotalSeconds);
 
 
-        public RockTheVoteCommand(GameRules gameRules, EndMapVoteManager endmapVoteManager, StringLocalizer localizer, PluginState pluginState, AFKManager afkManager, PanoramaVote panoramaVote, ILogger<RockTheVoteCommand> logger)
+        public RockTheVoteCommand(GameRules gameRules, EndMapVoteManager endmapVoteManager, StringLocalizer localizer, PluginState pluginState, AFKManager afkManager, ILogger<RockTheVoteCommand> logger)
         {
             _localizer = localizer;
             _gameRules = gameRules;
             _endmapVoteManager = endmapVoteManager;
             _pluginState = pluginState;
             _afk = afkManager;
-            _panoramaVote = panoramaVote;
             _logger = logger;
         }
 
@@ -171,6 +172,34 @@ namespace cs2_rockthevote
         private static string Tag(CCSPlayerController p)
             => $"{p.PlayerName} [slot {p.Slot}]";
 
+        /// <summary>
+        /// The yes/no rtv vote runs through Next-il/Votes. With Votes missing the plugin falls back to the chat vote
+        /// (the AlwaysActive-style counter), so !rtv never stops working.
+        /// </summary>
+        private bool UsePanorama
+        {
+            get
+            {
+                if (!_config.EnablePanorama || _config.AlwaysActive) return false;
+                if (VotesBridge.Api != null) return true;
+
+                if (!_warnedNoVotes)
+                {
+                    _warnedNoVotes = true;
+                    _logger.LogError("[RTV.RtvCommand] Rtv.EnablePanorama is on but Next-il/Votes is not loaded (plugins/Votes + shared/VotesApi); using the chat vote instead.");
+                }
+                return false;
+            }
+        }
+        private bool _warnedNoVotes;
+
+        /// <summary>A card text from the lang file, or the English default when the server's lang file is older.</summary>
+        private string Card(string key, string fallback)
+        {
+            string value = _localizer.Localize(key);
+            return value == key ? fallback : value;
+        }
+
         private int RequiredYesVotes(int eligiblePlayers)
         {
             return (int)Math.Ceiling(eligiblePlayers * (_config.VotePercentage / 100.0));
@@ -212,7 +241,7 @@ namespace cs2_rockthevote
             try
             {
                 bool alwaysActive = _config.AlwaysActive;
-                bool usePanorama = _config.EnablePanorama && !alwaysActive;
+                bool usePanorama = UsePanorama;
 
                 if (player == null)
                     return;
@@ -264,60 +293,64 @@ namespace cs2_rockthevote
 
                 if (usePanorama)
                 {
-                    _panoramaVote.Init();
-                    Server.ExecuteCommand("sv_allow_votes 1");
-                    Server.ExecuteCommand("sv_vote_allow_in_warmup 1");
-                    Server.ExecuteCommand("sv_vote_allow_spectators 1");
-                    Server.ExecuteCommand("sv_vote_count_spectator_votes 1");
-                    
-                    bool needsFilter = !_generalConfig.IncludeAFK || !_generalConfig.IncludeSpectator;
-
-                    if (!needsFilter)
+                    if (VotesBridge.IsVoteActive)
                     {
-                        _panoramaVote.SendYesNoVoteToAll(
-                            _config.RtvVoteDuration,
-                            player.Slot, // player.Slot Header = Vote by: playerName. VoteConstants.VOTE_CALLER_SERVER Header = Vote by: Server
-                            "#SFUI_vote_changelevel",
-                            _localizer.Localize("rtv.ui-question"),
-                            VoteResultCallback,
-                            VoteHandlerCallback
-                        );
+                        player.PrintToChat(_localizer.LocalizeWithPrefix("general.vote-in-progress"));
+                        return;
                     }
-                    else
+
+                    // Who may vote: everyone (Votes' default, every connected human), or the eligible pool when AFK
+                    // players or spectators are left out.
+                    List<CCSPlayerController>? voters = null;
+                    if (!_generalConfig.IncludeAFK || !_generalConfig.IncludeSpectator)
                     {
                         _afk.CheckAllPlayers();
 
-                        var eligible = EligiblePlayers().ToList(); // this should already exclude AFK
+                        voters = EligiblePlayers().ToList(); // this should already exclude AFK
                         if (_generalConfig.DebugLogging)
                         {
-                            string roster = string.Join(", ", eligible.Select(Tag));
+                            string roster = string.Join(", ", voters.Select(Tag));
                             _debugLogger.LogInformation("[RTV.RtvCommand] RTV vote started. Eligible (non-AFK) players = {Count}: {Players}",
-                                eligible.Count, roster);
-                            Server.PrintToConsole($"[RTV.RtvCommand] RTV vote started. Eligible (non-AFK) players = {eligible.Count}: {roster}");
+                                voters.Count, roster);
+                            Server.PrintToConsole($"[RTV.RtvCommand] RTV vote started. Eligible (non-AFK) players = {voters.Count}: {roster}");
                         }
 
-                        // Build recipient list excluding afk's
-                        var filter = new RecipientFilter();
-                        foreach (var p in eligible)
-                            filter.Add(p);
-
                         // Bail for edge case lol
-                        if (filter.Count == 0)
+                        if (voters.Count == 0)
                         {
                             player.PrintToChat(_localizer.LocalizeWithPrefix("general.eligible"));
                             return;
                         }
-
-                        _panoramaVote.SendYesNoVote(
-                            _config.RtvVoteDuration,
-                            player.Slot, // player.Slot Header = Vote by: playerName. VoteConstants.VOTE_CALLER_SERVER Header = Vote by: Server
-                            "#SFUI_vote_changelevel",
-                            _localizer.Localize("rtv.ui-question"),
-                            filter,
-                            VoteResultCallback,
-                            VoteHandlerCallback
-                        );
                     }
+
+                    int pool = voters?.Count ?? Utilities.GetPlayers().Count(p => p is { IsValid: true, IsBot: false, IsHLTV: false });
+
+                    bool started = VotesBridge.Api!.StartYesNo(new YesNoVote
+                    {
+                        Owner = "RockTheVote",
+                        Caller = player,
+                        Eyebrow = Card("rtv.card.eyebrow", "Vote · Rock the vote"),
+                        Prefix = Card("rtv.card.prefix", ""),
+                        Subject = Card("rtv.card.subject", "Change the map"),
+                        DurationSeconds = _config.RtvVoteDuration,
+                        PassPercent = _config.VotePercentage,
+                        Voters = voters,
+                        // The rule as before: yes reaches VotePercentage of the pool; no votes do not count against it.
+                        RequiredYes = Math.Max(1, RequiredYesVotes(pool)),
+                        Decide = tally => tally.Voters > 0 && tally.Yes >= Math.Max(1, RequiredYesVotes(tally.Voters)),
+                        PassedText = Card("rtv.card.passed", "map vote starts now"),
+                        OnEnd = OnRtvVoteEnded,
+                    });
+
+                    if (!started)
+                    {
+                        player.PrintToChat(_localizer.LocalizeWithPrefix("general.vote-in-progress"));
+                        return;
+                    }
+
+                    _rtvEndTime = DateTime.UtcNow.AddSeconds(_config.RtvVoteDuration);
+                    _pluginState.RtvVoteHappening = true;
+                    Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("rtv.rocked-the-vote", _initiatingPlayerName)}");
                 }
 
                 if (!usePanorama)
@@ -408,110 +441,26 @@ namespace cs2_rockthevote
             }
         }
 
-        private bool VoteResultCallback(YesNoVoteInfo info)
+        /// <summary>The rtv yes/no vote ended (Votes). A pass starts the map vote; anything else is a fail with a cooldown.</summary>
+        private void OnRtvVoteEnded(VotesApi.VoteResult result)
         {
-            int requiredYesVotes = (int)Math.Ceiling(info.num_clients * (_config.VotePercentage / 100.0));
+            _pluginState.RtvVoteHappening = false;
 
-            if (info.yes_votes >= requiredYesVotes)
+            if (result.Passed)
             {
                 Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("rtv.votes-reached")}");
                 _endmapVoteManager.StartVote(isRtv: true);
-
-                return true;
+                return;
             }
-            else
-            {
-                Server.ExecuteCommand("sv_allow_votes 0");
-                Server.ExecuteCommand("sv_vote_allow_in_warmup 0");
-                Server.ExecuteCommand("sv_vote_allow_spectators 0");
-                Server.ExecuteCommand("sv_vote_count_spectator_votes 0");
-                ActivateCooldown();
-                return false;
-            }
-        }
 
-        private void VoteHandlerCallback(YesNoVoteAction action, int param1, int param2)
-        {
-            switch (action)
-            {
-                case YesNoVoteAction.VoteAction_Start:
-                    _rtvEndTime = DateTime.UtcNow.AddSeconds(_config.RtvVoteDuration);
-                    _pluginState.RtvVoteHappening = true;
-                    Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("rtv.rocked-the-vote", _initiatingPlayerName)}");
-                    break;
+            // Votes cancels a running vote on map change; that is not a failed rtv.
+            if (result.Reason == VoteEndReason.Cancelled && result.CancelReason == "map change")
+                return;
 
-                case YesNoVoteAction.VoteAction_Vote:
-                    try
-                    {
-                        var vc = _panoramaVote.VoteController;
-                        if (vc != null)
-                        {
-                            if (!vc.IsValid)
-                                return;
-
-                            int potentialVotes = vc.PotentialVotes;
-
-                            if (vc.VoteOptionCount.Length <= (int)CastVote.VOTE_OPTION2)
-                                return;
-
-                            int yesVotes = vc.VoteOptionCount[(int)CastVote.VOTE_OPTION1];
-                            int noVotes = vc.VoteOptionCount[(int)CastVote.VOTE_OPTION2];
-                            int requiredYesVotes = (int)Math.Ceiling(potentialVotes * (_config.VotePercentage / 100.0));
-
-                            // Early cancel if the vote can no longer pass
-                            if ((potentialVotes - noVotes) < requiredYesVotes)
-                            {
-                                Server.NextFrame(() =>
-                                {
-                                    try
-                                    {
-                                        _panoramaVote.EndVote(YesNoVoteEndReason.VoteEnd_Cancelled, overrideFailCode: 0);
-                                        ActivateCooldown();
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.LogError(ex, "[RTV.RtvCommand] Error during vote cancellation: {Message}", ex.Message);
-                                    }
-                                });
-                                return;
-                            }
-
-                            // Early pass if enough yes votes are already in
-                            if (yesVotes >= requiredYesVotes)
-                            {
-                                Server.NextFrame(() =>
-                                {
-                                    try
-                                    {
-                                        _panoramaVote.EndVote(YesNoVoteEndReason.VoteEnd_AllVotes);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.LogError(ex, "[RTV.RtvCommand] Error during early vote pass: {Message}", ex.Message);
-                                    }
-                                });
-                                return;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "[RTV.RtvCommand] Error processing vote: {Message}", ex.Message);
-                    }
-                    break;
-
-                case YesNoVoteAction.VoteAction_End:
-                    _pluginState.RtvVoteHappening = false;
-                    if ((YesNoVoteEndReason)param1 == YesNoVoteEndReason.VoteEnd_Cancelled)
-                    {
-                        Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("rtv.failed")}");
-                    }
-                    else if ((YesNoVoteEndReason)param1 == YesNoVoteEndReason.VoteEnd_TimeUp)
-                    {
-                        Server.PrintToChatAll($"{_localizer.LocalizeWithPrefix("rtv.time-up")}");
-                    }
-                    break;
-            }
+            Server.PrintToChatAll(result.Reason == VoteEndReason.TimeUp
+                ? $"{_localizer.LocalizeWithPrefix("rtv.time-up")}"
+                : $"{_localizer.LocalizeWithPrefix("rtv.failed")}");
+            ActivateCooldown();
         }
 
         public void ChatCountdown(int secondsLeft)
@@ -575,7 +524,7 @@ namespace cs2_rockthevote
             if (_voteManager == null || !_config.Enabled)
                 return;
 
-            bool usePanorama = _config.EnablePanorama && !_config.AlwaysActive;
+            bool usePanorama = UsePanorama;
             if (usePanorama)
                 return;
 
@@ -700,7 +649,7 @@ namespace cs2_rockthevote
             if (player == null)
                 return;
 
-            bool usePanorama = _config.EnablePanorama && !_config.AlwaysActive;
+            bool usePanorama = UsePanorama;
 
             if (!usePanorama)
             {
@@ -721,8 +670,7 @@ namespace cs2_rockthevote
                     }
                 });
             }
-            else
-                _panoramaVote.RemovePlayerFromVote(player.Slot);
+            // On the Votes path a leaver is dropped by Votes itself.
         }
     }
 }
