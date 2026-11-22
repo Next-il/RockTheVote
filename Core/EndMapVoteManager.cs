@@ -55,10 +55,13 @@ namespace cs2_rockthevote
         /// <summary>The Panorama vote card, or null when it is disabled in config or failed to
         /// start. Null is the fallback to the configured MenuType.</summary>
         public VotePanel? Hud { get; private set; }
+
+        /// <summary>How long the result stays on the vote card.</summary>
+        private const float ResultSeconds = 3.0f;
         public IReadOnlyList<KeyValuePair<string, int>> SortedTopVotes => _sortedTopVotes;
 
         /// <summary>Redraws the vote card. Called wherever the tallies change.</summary>
-        private void RefreshHud() => Hud?.Update(Votes);
+        private void RefreshHud() => Hud?.Update(Votes, _playerVotes);
 
         private void RebuildSortedTopVotes()
         {
@@ -502,7 +505,8 @@ namespace cs2_rockthevote
             _playerVotes[slot] = mapName;
             Votes[mapName] += 1;
             RebuildSortedTopVotes();
-            player.PrintToChat(_localizer.LocalizeWithPrefix("emv.you-voted", mapName));
+            if (Hud is null)
+                player.PrintToChat(_localizer.LocalizeWithPrefix("emv.you-voted", mapName));
             if (_endMapConfig.EnableRevote)
                 player.PrintToChat(_localizer.LocalizeWithPrefix("emv.revote"));
 
@@ -529,6 +533,7 @@ namespace cs2_rockthevote
 
             int slot = player.Slot;
             _revoteMenuOpen.Remove(slot);
+            Hud?.Forget(slot);
 
             if (!_playerVotes.TryGetValue(slot, out var votedMap))
                 return;
@@ -844,7 +849,8 @@ namespace cs2_rockthevote
 
             // Shown once for everyone rather than per player: it is one card driven by shared vote
             // state, not a menu each player navigates.
-            Hud?.Show(_currentVoteOptions, isRtv, Votes);
+            if (Hud != null) Hud.ShrinkAfterVote = _generalConfig.HudShrinkAfterVote;
+            Hud?.Show(_currentVoteOptions, isRtv, Votes, _playerVotes);
 
             foreach (var snapshot in players)
             {
@@ -934,7 +940,9 @@ namespace cs2_rockthevote
             if (_pluginState.Unloaded)
                 return;
 
-            Hud?.Hide();
+            // With the card, the board turns into the result below instead of closing here.
+            if (Hud is null || !Hud.IsOpen)
+                Hud?.Hide();
 
             CloseAllActiveMenus();
 
@@ -991,7 +999,22 @@ namespace cs2_rockthevote
                 Server.MapName
             );
 
-            Server.PrintToChatAll(_localizer.LocalizeWithPrefix("emv.vote-ended", winner.Key, percent, totalVotes));
+            if (Hud is { IsOpen: true } hud)
+            {
+                // The result stays on the card for a few seconds and says when the map changes,
+                // instead of the vote-ended / extended / next-round chat lines.
+                string sub = winner.Key == extendOption
+                    ? _localizer.Localize("emv.hud.sub-extended", _generalConfig.RoundTimeExtension)
+                    : isRtv
+                        ? _localizer.Localize(_rtvConfig.ChangeAtRoundEnd ? "emv.hud.sub-next-round" : "emv.hud.sub-now")
+                        : _localizer.Localize(_endMapConfig.ChangeMapImmediately ? "emv.hud.sub-now" : "emv.hud.sub-map-end");
+                int token = hud.ShowResult(winner.Key, (int)Math.Round(percent), sub);
+                _plugin?.AddTimer(ResultSeconds, () => Hud?.HideIf(token), TimerFlags.STOP_ON_MAPCHANGE);
+            }
+            else
+            {
+                Server.PrintToChatAll(_localizer.LocalizeWithPrefix("emv.vote-ended", winner.Key, percent, totalVotes));
+            }
 
             if (winner.Key == extendOption)
             {
@@ -1010,7 +1033,8 @@ namespace cs2_rockthevote
                             _generalConfig.RoundTimeExtension,
                             _pluginState.MapExtensionCount + 1
                         );
-                        Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed", _generalConfig.RoundTimeExtension, percent, totalVotes));
+                        if (Hud is null)
+                            Server.PrintToChatAll(_localizer.LocalizeWithPrefix("extendtime.vote-ended.passed", _generalConfig.RoundTimeExtension, percent, totalVotes));
                         _pluginState.MapExtensionCount++;
                     }
                     else
@@ -1087,7 +1111,8 @@ namespace cs2_rockthevote
                     }
                     else
                     {
-                        Server.PrintToChatAll(_localizer.LocalizeWithPrefix("general.changing-map-next-round", winner.Key));
+                        if (Hud is null)
+                            Server.PrintToChatAll(_localizer.LocalizeWithPrefix("general.changing-map-next-round", winner.Key));
                     }
                 }
             }

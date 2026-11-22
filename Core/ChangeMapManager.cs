@@ -105,6 +105,31 @@ namespace cs2_rockthevote
             _mapChangeVerifyTimer = null;
         }
 
+
+        /// <summary>"Changing map to X": the next-map card when the vote HUD is up, the chat line otherwise.</summary>
+
+        private void AnnounceChange(string mapName)
+
+        {
+
+            if (VotePanel.Current is { } hud)
+
+            {
+
+                int token = hud.ShowNotice(mapName, _localizer.Localize("emv.hud.sub-now"));
+
+                _plugin?.AddTimer(8.0f, () => VotePanel.Current?.HideIf(token), TimerFlags.STOP_ON_MAPCHANGE);
+
+                return;
+
+            }
+
+
+            Server.PrintToChatAll(_localizer.LocalizeWithPrefixInternal(_prefix, "general.changing-map", mapName));
+
+        }
+
+
         public bool ChangeNextMap(MapChangeTrigger trigger)
         {
             if (!_pluginState.MapChangeScheduled)
@@ -146,7 +171,7 @@ namespace cs2_rockthevote
                 return false;
             }
 
-            Server.PrintToChatAll(_localizer.LocalizeWithPrefixInternal(_prefix, "general.changing-map", map.Name));
+            AnnounceChange(map.Name);
 
             string mapBefore = Server.MapName ?? string.Empty;
 
@@ -341,7 +366,7 @@ namespace cs2_rockthevote
                             current
                         );
 
-                        Server.PrintToChatAll(_localizer.LocalizeWithPrefixInternal(_prefix, "general.changing-map", fallback.Name));
+                        AnnounceChange(fallback.Name);
 
                         if (fallback.Id is not null)
                         {

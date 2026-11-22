@@ -1,15 +1,26 @@
 /*
-    vote_hud - the live map vote. Shell comes from hud_shared; only the rows are specific.
+    vote_hud - the live map vote, small. Shell (blur, fill, reveal) comes from hud_shared; the rest is here.
 
     NOT INTERACTIVE, on purpose. The panel takes no mouse (CaptureInput false on the contract,
     hittest false on every element) and hides no HUD, so players carry on playing while it is up.
     Voting is done in chat, which is why there is not a single Button in the layout.
 
-    WIDTH: root 300. Body padding 12 each side -> 276 usable per row.
+    SIZE: root 216 wide. 10px padding each side -> 196 per row: 12 key + 6 + name/bar + 6 + 28 pct.
+    Rows are 22px with 6px between them; the header and footer are one line each. About half the
+    area of the first version (300x375 with 7 maps), and after the viewer votes it folds to two rows.
+
+    STATES (classes on #RtvVoteRoot, per viewer):
+      voted     the hint line goes; with ShrinkAfterVote the plugin also folds every row but the
+                leader and the viewer's pick
+      st-done   the result, 3 seconds: green edge and title, only the winner row, no countdown,
+                the hint line says when the map changes
+      notice    the next-map notice: blue, one row without numbers, the hint line is its subline
 */
 
 .vote-root {
-    width: 300px;
+    width: 216px;
+    padding: 8px 10px 8px 10px;
+    border-left-width: 2px;
 
     /*
         Left-centre, and it slides in from off-screen left. hud_shared has no anchor for this
@@ -20,7 +31,7 @@
     vertical-align: center;
     margin-left: 24px;
 
-    transform: translateX(-380px);
+    transform: translateX(-300px);
     transition-property: opacity, transform;
     transition-duration: 0.22s;
     transition-timing-function: ease-out;
@@ -29,58 +40,100 @@
     opacity: 1;
     transform: translateX(0px);
 }
+.vote-root.st-done { border-left-color: #4caf6d; }
+.vote-root.notice  { border-left-color: #5b9bd5; }
+
+/* ------------------------------------------------------------------ top line */
+
+.vote-head {
+    flow-children: right;
+    width: 100%;
+}
+.vote-title {
+    width: fill-parent-flow(1.0);
+    font-family: Stratum2 Mono;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #f0a531;
+    vertical-align: center;
+}
+.vote-root.st-done .vote-title { color: #4caf6d; }
+.vote-root.notice .vote-title  { color: #5b9bd5; }
+
+/* Mono so the digits do not shuffle the line as they tick down. */
+.vote-time {
+    font-family: Stratum2 Mono;
+    font-size: 9px;
+    font-weight: bold;
+    color: #aeb5bc;
+    text-align: right;
+    vertical-align: center;
+}
+.vote-root.st-done .vote-time,
+.vote-root.notice .vote-time { visibility: collapse; }
+
+/* ------------------------------------------------------------------ rows */
 
 .vote-body {
     flow-children: down;
     width: 100%;
-    padding: 12px;
+    margin-top: 4px;
 }
 
 .vote-row {
     flow-children: right;
     width: 100%;
-    height: 34px;
-    margin-bottom: 4px;
-    padding: 0px 6px;
-    background-color: #ffffff08;
-    border-left: 2px solid #00000000;
-    transition-property: background-color, border-left-color;
-    transition-duration: 0.15s;
-    transition-timing-function: ease-in-out;
+    height: 22px;
+    margin-bottom: 6px;
 }
-/* The map currently winning. Toggled by the plugin as votes come in. */
-.vote-row.leading {
-    background-color: #f0a53118;
-    border-left-color: #f0a531;
-}
+.vote-row.fold { visibility: collapse; }
 
 .vote-key {
-    width: 22px;
+    width: 12px;
     font-family: Stratum2 Mono;
-    font-size: 12px;
-    color: #9aa3ad;
+    font-size: 8.5px;
+    color: #5f676f;
     vertical-align: center;
 }
-.vote-row.leading .vote-key { color: #f0a531; }
+
+/* The viewer's own pick: a check where the number was. */
+.vote-you {
+    width: 12px;
+    height: 9px;
+    vertical-align: center;
+    background-image: url("s2r://panorama/images/icons/ui/check.vsvg");
+    background-size: 100% 100%;
+    background-texture-size: 32px 32px;
+    wash-color: #e8ebee;
+    visibility: collapse;
+}
+.vote-row.mine .vote-key { visibility: collapse; }
+.vote-row.mine .vote-you { visibility: visible; }
 
 .vote-mid {
     flow-children: down;
     width: fill-parent-flow(1.0);
+    margin-left: 6px;
     vertical-align: center;
 }
 .vote-name {
     width: 100%;
-    font-family: Stratum2 Regular;
-    font-size: 12px;
-    color: #ffffff;
+    font-family: Stratum2 Medium Condensed;
+    font-size: 13px;
+    color: #aeb5bc;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
+.vote-row.leading .vote-name,
+.vote-row.mine .vote-name { color: #ffffff; }
 
 .vote-track {
     width: 100%;
-    height: 4px;
-    margin-top: 3px;
-    background-color: #ffffff12;
+    height: 2px;
+    margin-top: 2px;
+    background-color: #ffffff0d;
 }
 /*
     The bar is always full width and is revealed by a clip rectangle. The server can only toggle
@@ -91,39 +144,60 @@
     subtree re-measures the label, re-lays out the row and re-resolves a percentage width against
     the parent, which restarts the transition. This card rewrites optN_pct and optN_name on every
     tally change - the same moment the bar is meant to move - so the one update the animation exists
-    for is the one that destroys it. Valve's own note on clip is the tell: it has no impact on
-    layout, and is supported for transitions.
+    for is the one that destroys it. clip has no impact on layout, and is supported for transitions.
 */
 .vote-bar {
     width: 100%;
-    height: 4px;
-    background-color: #5a636d;
+    height: 2px;
+    background-color: #ffffff3a;
     transition-property: clip, background-color;
     transition-duration: 0.25s;
     transition-timing-function: ease-out;
 }
 .vote-row.leading .vote-bar { background-color: #f0a531; }
+.vote-root.st-done .vote-row.leading .vote-bar { background-color: #4caf6d; }
 
 .vote-pct {
-    width: 38px;
+    width: 28px;
+    margin-left: 6px;
     font-family: Stratum2 Mono;
-    font-size: 11px;
-    color: #aab2bc;
+    font-size: 8.5px;
+    color: #6c747d;
     text-align: right;
     vertical-align: center;
 }
 .vote-row.leading .vote-pct { color: #f0a531; }
+.vote-root.st-done .vote-row.leading .vote-pct { color: #4caf6d; }
 
-/*
-    hud-hint already fills the footer row, so the countdown just sits after it and right-aligns
-    itself. Mono so the digits do not shuffle the layout as they tick down.
-*/
-.vote-time {
+/* The notice: one row, the map name only. */
+.vote-root.notice .vote-key,
+.vote-root.notice .vote-pct,
+.vote-root.notice .vote-track { visibility: collapse; }
+.vote-root.notice .vote-name { font-size: 17px; color: #ffffff; }
+.vote-root.notice .vote-mid { margin-left: 0px; }
+
+/* ------------------------------------------------------------------ hint line */
+
+.vote-hint {
+    width: 100%;
+    margin-top: -2px;
     font-family: Stratum2 Mono;
+    font-size: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #5f676f;
+}
+.vote-root.voted .vote-hint { visibility: collapse; }
+/* On the result and the notice the hint line is the subline: when the map changes. */
+.vote-root.st-done .vote-hint,
+.vote-root.notice .vote-hint {
+    visibility: visible;
+    margin-top: 0px;
+    font-family: Stratum2 Regular;
     font-size: 11px;
-    color: #f0a531;
-    text-align: right;
-    vertical-align: center;
+    letter-spacing: 0px;
+    text-transform: none;
+    color: #9aa2ac;
 }
 
 .vote-bar.w0 { clip: rect( 0%, 0%, 100%, 0% ); }

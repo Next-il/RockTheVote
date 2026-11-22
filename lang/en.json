@@ -93,5 +93,11 @@
   "extendtime.card.eyebrow": "Vote · Extend the map",
   "extendtime.card.prefix": "Extend the map by",
   "extendtime.card.subject": "{0} minutes",
-  "extendtime.card.passed": "map extended by {0} min"
+  "extendtime.card.passed": "map extended by {0} min",
+
+  // Map vote card (vote_hud): the next-map line
+  "emv.hud.sub-next-round": "Changes next round",
+  "emv.hud.sub-now": "Changing now",
+  "emv.hud.sub-map-end": "Changes when this map ends",
+  "emv.hud.sub-extended": "Map extended by {0} minutes"
 }

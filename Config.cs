@@ -131,6 +131,12 @@ namespace cs2_rockthevote
         /// </summary>
         public bool EnableHudVote { get; set; } = true;
 
+        /// <summary>
+        /// With the vote card on: once a player has voted, their card folds to the leading map and
+        /// their own pick, so it stops covering the left side for the rest of the vote.
+        /// </summary>
+        public bool HudShrinkAfterVote { get; set; } = true;
+
         public string ExtendPermission { get; set; } = "@css/changemap";
 
         [JsonIgnore]
