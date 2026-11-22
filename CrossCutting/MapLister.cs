@@ -322,8 +322,8 @@ namespace cs2_rockthevote
                 return;
             }
 
-            // Silent here: at boot the port may not be known yet. SaveCache reports a lasting problem.
-            var cachePath = MapListCache.Resolve(out _);
+            // Silent here: before the first map there is no path yet. SaveCache reports a lasting problem.
+            var cachePath = MapListCache.Resolve(out _, out _);
             if (cachePath is not null)
             {
                 try
@@ -380,18 +380,18 @@ namespace cs2_rockthevote
         }
 
         /// <summary>
-        /// Runs after a good fetch, a frame or more after load, so hostport is set by now and a
-        /// missing path is a lasting problem worth one WARN per plugin load.
+        /// Runs after a good fetch. A fetch that lands before the first map skips the save quietly
+        /// (the map-start fetch saves); any other missing path is worth one WARN per plugin load.
         /// </summary>
         private void SaveCache(string url, string[] lines)
         {
             if (_cachedUrl == url && _cachedLines is not null && _cachedLines.SequenceEqual(lines))
                 return;
 
-            var path = MapListCache.Resolve(out var problem);
+            var path = MapListCache.Resolve(out var problem, out bool notYet);
             if (path is null)
             {
-                if (!_cacheProblemLogged)
+                if (!notYet && !_cacheProblemLogged)
                 {
                     _cacheProblemLogged = true;
                     _logger.LogWarning("[RTV.MapList] No cache file, the last good list is kept in memory only: {Problem}.", problem);

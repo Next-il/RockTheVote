@@ -11,7 +11,7 @@ General purpose map voting plugin.
 - Reads from a custom maplist, or from a website URL (`General.MapListUrl`, see [Map list from a URL](#map-list-from-a-url))
 - RTV Command (Using !rtv in chat, or with Panorama system that is built into CS2 [F1 = Yes, F2 = No])
 - End of Map Vote. Supports map cooldown, map extension option.
-- Map cooldown persistence. Recently played maps stay on cooldown across server restarts (stored in mapcooldown.txt).
+- Map cooldown persistence. Recently played maps stay on cooldown across server restarts (stored per server in `csgo/rockthevote/mapcooldown-<port>.txt`, see [Per-server files](#per-server-files)).
 - !revote command. During an active End of Map Vote, lets a player reopen the vote as a menu and change their vote. Re-typing !revote while the menu is open does nothing (vote already active). Toggled via EndOfMapVote.EnableRevote.
 - Nominate command (nominate a map to appear in the map vote). !nominate opens the map menu: search, filters and pages, so a few hundred maps stay usable. It marks the maps already nominated (and your own pick), the maps on cooldown (with when they are back) and the current map. Partial name matching, and conflicting map name resolution (surf_beginner, surf_beginner2): !nominate surf_beg opens the menu searched for it. Limit 1 per player.
 
@@ -203,9 +203,18 @@ Set `General.MapListUrl` and the map list comes from a website instead of maplis
 
 While a fetch is out (at most 5 seconds) the plugin already runs on 2 or 3, so it never waits on the network.
 
-**The cache file** is `csgo/rockthevote/maplist-cache-<port>.json` in the server's own game folder (e.g. `/home/container/game/csgo/rockthevote/maplist-cache-27015.json`). It holds the last good list and the URL it came from; a cache saved for another URL is ignored. It is deliberately not next to the config: the config and plugin folders are often shared between servers (bind mounts), and several servers rewriting one file there race at restart. The port in the name is a second guard. On Linux the plugin also checks /proc/self/mountinfo, and if the cache folder turns out to be a separate mount, or the port is unknown, it keeps the last good list in memory only and logs one WARN.
+**The cache file** is `csgo/rockthevote/maplist-cache-<port>.json` in the server's own game folder (e.g. `/home/container/game/csgo/rockthevote/maplist-cache-27015.json`). It holds the last good list and the URL it came from; a cache saved for another URL is ignored. It follows the [per-server files](#per-server-files) rules: if no safe path exists, the last good list is kept in memory only and one WARN is logged.
 
 **Logs.** One INFO line per fetch with where the maps came from and how many, e.g. `[RTV.MapList] Using 42 maps from https://...`. A failed fetch adds one WARN with the reason, e.g. `[RTV.MapList] Fetching https://... failed: no answer within 5s.`, and the INFO line names the fallback in use. There are no retries; the next map start is the retry.
+
+# Per-server files
+The files the plugin writes while running go in the server's own game folder, under `csgo/rockthevote/`, with the server port in the name:
+- `mapcooldown-<port>.txt` - the recently played maps (map cooldown), one per line
+- `maplist-cache-<port>.json` - the last good list from `MapListUrl`
+
+They are deliberately not next to the config. The config and plugin folders are often shared between servers (bind mounts, one folder for every server of a mode on a node), and several servers rewriting one file there race at restart waves. `csgo/rockthevote/` is not a mount, and the port in the name is a second guard. On Linux the plugin also checks /proc/self/mountinfo: if that folder turns out to be a separate mount, the file is skipped, the data is kept in memory only, and one WARN is logged. The path is worked out once the server has started its first map, since the port may not be set before that.
+
+**Map cooldown is per server.** Up to 2.3.0 the cooldown was `mapcooldown.txt` beside the config, so servers sharing that folder also shared one cooldown. Now each server has its own and only counts the maps it played itself. On the first start after updating, a server with no `mapcooldown-<port>.txt` yet reads the old `mapcooldown.txt` once to seed it, so the cooldown carries over. The old file is never written again and can be deleted once every server has updated.
 
 # Roadmap
 - [ ] Add vote percentage required for winning map (e.g. must receive 25% of the vote)

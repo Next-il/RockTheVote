@@ -9,8 +9,10 @@ namespace cs2_rockthevote.Core
         private GeneralConfig _generalConfig = new();
         public event EventHandler<Map[]>? EventCooldownRefreshed;
 
-        // Backup file (next to maplist.txt) so the cooldown survives a restart, null until OnLoad
+        // Per-server backup so the cooldown survives a restart: csgo/rockthevote/mapcooldown-<port>.txt
+        // (see ServerLocalData). Null until EnsureRestored has run, and for good when memory-only.
         private string? _cooldownFilePath;
+        private bool _restored;
 
         private readonly ILogger<MapCooldown> _logger;
 
@@ -21,8 +23,8 @@ namespace cs2_rockthevote.Core
             // Each time the maps load (i.e. on map start), refresh our list
             mapLister.EventMapsLoaded += (sender, maps) =>
             {
-                // Skip until OnLoad has restored the backup, else we'd overwrite it with an empty list
-                if (_cooldownFilePath is not null)
+                // Skip until the backup is restored, else we'd overwrite it with an empty list
+                if (EnsureRestored())
                     RegisterCurrentMap();
 
                 EventCooldownRefreshed?.Invoke(this, maps);
@@ -33,21 +35,59 @@ namespace cs2_rockthevote.Core
         {
             _generalConfig = config.General;
 
-            // Capture here as well as in MapLister: the framework's ordering between OnConfigParsed
-            // and OnLoad is not something this plugin should depend on, and the path is unknowable
-            // until one of them has run. Capture is idempotent.
+            // Only for finding the old shared mapcooldown.txt beside the config, read once to seed
+            // the per-server file. Capture is idempotent.
             PluginPaths.Capture(config);
-            _cooldownFilePath ??= PluginPaths.Resolve("mapcooldown.txt");
         }
 
         public void OnLoad(Plugin plugin)
         {
-            // Written at runtime, so it must not live in the plugin directory - that is the shared,
-            // often read-only mount. Sits with the config, same as maplist.txt.
-            _cooldownFilePath ??= PluginPaths.Resolve("mapcooldown.txt");
+            // At boot no map has started yet and this does nothing; the first map start restores.
+            if (EnsureRestored())
+                RegisterCurrentMap();
+        }
 
-            LoadCooldownFromFile();
-            RegisterCurrentMap();
+        /// <summary>
+        /// Loads the saved cooldown once. False until the server has started a map: before that the
+        /// per-server path is not known yet, and no map is current anyway.
+        ///
+        /// <para>The cooldown used to live in configs/plugins/RockTheVote/mapcooldown.txt, which is a
+        /// mount shared by every server of a mode on the node, so they all raced on one file. Now each
+        /// server keeps its own. The first time, the old shared file is read to seed it, so cooldowns
+        /// carry over; it is never written again.</para>
+        /// </summary>
+        private bool EnsureRestored()
+        {
+            if (_restored)
+                return true;
+
+            var path = ServerLocalData.Resolve("mapcooldown", ".txt", out var problem, out bool notYet);
+            if (path is null && notYet)
+                return false;
+
+            _restored = true;
+
+            if (path is not null && File.Exists(path))
+            {
+                _cooldownFilePath = path;
+                LoadCooldownFromFile(path);
+                return true;
+            }
+
+            var legacy = PluginPaths.Resolve("mapcooldown.txt");
+            bool seeded = legacy is not null && File.Exists(legacy) && LoadCooldownFromFile(legacy);
+
+            if (path is null)
+            {
+                _logger.LogWarning("[RTV.Cooldown] No per-server cooldown file, the cooldown is kept in memory only: {Problem}.", problem);
+                return true;
+            }
+
+            // The caller's RegisterCurrentMap writes the file right after this.
+            _cooldownFilePath = path;
+            if (seeded)
+                _logger.LogInformation("[RTV.Cooldown] Seeding {Path} with {Count} map(s) from the old shared {Legacy}.", path, mapsOnCoolDown.Count, legacy);
+            return true;
         }
 
         // Adds the current map, drops the oldest past the limit, and saves to disk
@@ -79,15 +119,12 @@ namespace cs2_rockthevote.Core
             SaveCooldownToFile();
         }
 
-        // Loads the saved cooldown maps from disk, trimmed to the configured limit
-        private void LoadCooldownFromFile()
+        // Loads the saved cooldown maps from disk, trimmed to the configured limit. False if unreadable.
+        private bool LoadCooldownFromFile(string path)
         {
-            if (string.IsNullOrEmpty(_cooldownFilePath) || !File.Exists(_cooldownFilePath))
-                return;
-
             try
             {
-                var restored = File.ReadAllLines(_cooldownFilePath)
+                var restored = File.ReadAllLines(path)
                     .Select(x => x.Trim().ToLowerInvariant())
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .ToList();
@@ -97,15 +134,17 @@ namespace cs2_rockthevote.Core
                     restored = restored.Skip(restored.Count - maxEntries).ToList();
 
                 mapsOnCoolDown = restored;
+                return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[RTV.Cooldown] Failed to load map cooldown file from {CooldownPath}. message={Message}", _cooldownFilePath, ex.Message);
-                Server.PrintToConsole($"[RTV.Cooldown] Failed to load map cooldown file from {_cooldownFilePath}. message={ex.Message}");
+                _logger.LogError(ex, "[RTV.Cooldown] Failed to load map cooldown file from {CooldownPath}. message={Message}", path, ex.Message);
+                Server.PrintToConsole($"[RTV.Cooldown] Failed to load map cooldown file from {path}. message={ex.Message}");
+                return false;
             }
         }
 
-        // Writes the current cooldown window to disk, one base map name per line
+        // Writes the current cooldown window to this server's file, one base map name per line
         private void SaveCooldownToFile()
         {
             if (string.IsNullOrEmpty(_cooldownFilePath))
@@ -113,13 +152,8 @@ namespace cs2_rockthevote.Core
 
             try
             {
-                // The configs directory exists, but a DataDirectory pointing at a subfolder may not
-                // on a fresh server - and the first write would then fail every map change.
-                var dir = Path.GetDirectoryName(_cooldownFilePath);
-                if (!string.IsNullOrEmpty(dir))
-                    Directory.CreateDirectory(dir);
-
-                File.WriteAllLines(_cooldownFilePath, mapsOnCoolDown);
+                ServerLocalData.WriteAtomic(_cooldownFilePath,
+                    string.Concat(mapsOnCoolDown.Select(m => m + Environment.NewLine)));
             }
             catch (Exception ex)
             {

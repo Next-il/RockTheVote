@@ -3,15 +3,15 @@ using CounterStrikeSharp.API.Modules.Extensions;
 namespace cs2_rockthevote
 {
     /// <summary>
-    /// Works out where maplist.txt and mapcooldown.txt live: alongside the plugin's own config
-    /// file, in <c>configs/plugins/&lt;plugin&gt;/</c>.
+    /// Works out where maplist.txt lives: alongside the plugin's own config file, in
+    /// <c>configs/plugins/&lt;plugin&gt;/</c>. Read-only data only - files the plugin writes go to
+    /// <see cref="ServerLocalData"/>, because with Mounts the config folder is shared by every
+    /// server of a mode on a node. (mapcooldown.txt lived here until it raced across servers; the
+    /// old copy is still read once to seed the per-server file.)
     ///
-    /// <para><b>Why not the plugin folder.</b> Both files used to be read from next to the dll,
+    /// <para><b>Why not the plugin folder.</b> maplist.txt used to be read from next to the dll,
     /// which makes the data part of the deployment - running several servers with different map
-    /// lists meant shipping a whole copy of the plugin per server. mapcooldown.txt is worse still,
-    /// because the plugin writes it, and a shared read-only plugin mount cannot host that at all.
-    /// The config directory is already per-server, so one plugin directory now serves every
-    /// server.</para>
+    /// lists meant shipping a whole copy of the plugin per server.</para>
     ///
     /// <para><b>The directory is asked for, not guessed.</b> CounterStrikeSharp decides what that
     /// folder is called, and it follows the plugin's own directory name - which here is the server
