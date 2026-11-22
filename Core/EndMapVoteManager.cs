@@ -842,8 +842,11 @@ namespace cs2_rockthevote
             var mapsScrambled = Shuffle(new Random(), _mapLister.Maps!.Select(x => x.Name)
                 .Where(x => !_mapCooldown.IsMapInCooldown(x)).ToList());
 
+            // A nomination can outlive its map: css_reloadmaps or a MapListUrl edit may have dropped
+            // it since. If it won, the change could not resolve it, so it does not go on the card.
             var nominationWinners = _nominationManager.NominationWinners()
-                .Where(x => !_mapCooldown.IsMapInCooldown(x));
+                .Where(x => !_mapCooldown.IsMapInCooldown(x))
+                .Where(x => _mapLister.GetExactMapName(x) is not null);
 
             mapsElected = [.. nominationWinners.Concat(mapsScrambled).Distinct()];
 

@@ -169,6 +169,14 @@ namespace cs2_rockthevote
         public bool IncludeSpectator { get; set; } = true;
         public bool IncludeAFK { get; set; } = true;
         public int AFKCheckInterval { get; set; } = 30;
+        /// <summary>
+        /// Where to fetch the map list from instead of maplist.txt: a URL that answers GET with a
+        /// JSON array of strings, each one maplist.txt line, e.g. <c>["de_dust2", "surf_kitsune:3076153623"]</c>.
+        /// Fetched on load, on every map start and on css_reloadmaps. Empty = read maplist.txt,
+        /// exactly as before. When the URL fails, the last good list stays in use (memory, then a
+        /// per-server cache file), then maplist.txt.
+        /// </summary>
+        public string MapListUrl { get; set; } = "";
         public bool EnableMapValidation { get; set; } = false;
         public string SteamApiKey { get; set; } = "";
         public string DiscordWebhook { get; set; } = "";

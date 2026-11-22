@@ -153,7 +153,7 @@ namespace cs2_rockthevote
             // so players vote without the panel ever taking their mouse or movement keys.
             for (var key = 1; key <= VotePanel.Slots; key++)
                 RegisterStartupCommand($"css_{key}", $"Vote for map option {key}.", OnVoteKeyCommand);
-            RegisterStartupCommand("css_reloadmaps", "Reloads the map list from maplist.txt.", OnReloadMapsCommand);
+            RegisterStartupCommand("css_reloadmaps", "Reloads the map list: from General.MapListUrl when set, else maplist.txt.", OnReloadMapsCommand);
             RegisterStartupCommand("css_nom", "Nominate a map to appear in the vote.", OnNominateCommand);
             RegisterStartupCommand("css_nominate", "Nominate a map to appear in the vote.", OnNominateCommand);
             RegisterStartupCommand("css_voteextend", "Extends time for the current map", OnVoteExtendRoundTimeCommand);

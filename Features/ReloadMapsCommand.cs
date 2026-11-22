@@ -1,3 +1,4 @@
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -36,6 +37,21 @@ namespace cs2_rockthevote
             if (player != null && !PermissionUtility.HasAny(player, _generalConfig.AdminPermissions))
             {
                 command.ReplyToCommand($"[RTV] {ChatColors.Red}You do not have the correct permission to execute this command.");
+                return;
+            }
+
+            // With MapListUrl set the reload is a fetch: the answer comes back a frame or more later,
+            // and a failed fetch keeps the list as it is.
+            if (_mapLister.UsesUrl)
+            {
+                command.ReplyToCommand($"[RTV] Fetching the map list from {_mapLister.MapListUrl} ...");
+                _mapLister.FetchFromUrl(report: message =>
+                {
+                    if (player is null)
+                        Server.PrintToConsole($"[RTV] {message}");
+                    else if (player.IsValid)
+                        player.PrintToChat($"[RTV] {message}");
+                });
                 return;
             }
 
