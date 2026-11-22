@@ -8,7 +8,7 @@ General purpose map voting plugin.
 </div>
 
 # Features
-- Reads from a custom maplist
+- Reads from a custom maplist, or from a website URL (`General.MapListUrl`, see [Map list from a URL](#map-list-from-a-url))
 - RTV Command (Using !rtv in chat, or with Panorama system that is built into CS2 [F1 = Yes, F2 = No])
 - End of Map Vote. Supports map cooldown, map extension option.
 - Map cooldown persistence. Recently played maps stay on cooldown across server restarts (stored in mapcooldown.txt).
@@ -68,7 +68,7 @@ General purpose map voting plugin.
 ## [ Configuration ]
 - A config file will be created in `addons/counterstrikesharp/configs/plugins/RockTheVote` the first time you load the plugin.
 - Changes in the config file will require you to reload the plugin, restart the server, or using !reloadrtv (changing the map won't work).
-- Maps that will be used in RTV/nominate/votemap/end of map vote are located in addons/counterstrikesharp/plugins/RockTheVote/maplist.txt This canbe updated mid-game using the command !reloadmaps
+- Maps that will be used in RTV/nominate/votemap/end of map vote are read from `maplist.txt` next to the config file (`addons/counterstrikesharp/configs/plugins/RockTheVote/maplist.txt`), or from `General.MapListUrl` when that is set. Reload mid-game with !reloadmaps (`css_reloadmaps`).
 
 ```json
 {
@@ -165,6 +165,7 @@ General purpose map voting plugin.
     "IncludeSpectator": true, # true = spectators can vote (only applicable to !rtv). false = spectators can't vote
   	"IncludeAFK": false, # true = AFK players are included in the vote count (only applicable to !rtv). false = AFK players aren't included in the vote count
   	"AFKCheckInterval": 60, # how often an AFK check occurs in seconds (compares players coordinates between current and last check, also run again when the vote is initiated)
+    "MapListUrl": "", # blank = read maplist.txt. Set to a URL that returns the map list as a JSON array, e.g. "https://api.next-il.co.il/cs2/maplists/retakes". See "Map list from a URL" below
     "EnableMapValidation": true, # true = the plugin will check if there are any workshop maps in your maplist.txt that are no longer on the workshop
     "SteamApiKey": "", # blank = use 1 request/second HTML checks. Set to a Steam Web API key to batch validation requests (100 IDs per call) Get one here: https://steamcommunity.com/dev/apikey
     "DiscordWebhook": "" # blank = no alert. Discord Webhook will alert you to any workshop maps in your maplist.txt that are no longer on the workshop. Enter the enite "https://discord.com/api/webhooks/xxx" url
@@ -178,6 +179,33 @@ surf_beginner:3070321829
 surf_nyx (T1, Linear):3129698096
 de_dust2
 ```
+
+# Map list from a URL
+Set `General.MapListUrl` and the map list comes from a website instead of maplist.txt, so changing maps is a website edit, not a file change on every server. Leave it blank and nothing changes: maplist.txt is read exactly as before.
+
+```json
+"General": {
+  "MapListUrl": "https://api.next-il.co.il/cs2/maplists/retakes"
+}
+```
+
+**The URL.** `GET <MapListUrl>`, no auth. Next-il uses `https://api.next-il.co.il/cs2/maplists/<slug>`, where the slug is the MapChooser mode folder name in lowercase: `surftimer`, `bhoptimer`, `kz`, `retakes`, `retakesxmas`, `surfcombat`, `arena1v1`, `awplego`, `deathmatch`, `deathrun`, `duels`, `football`, `hidenseek`, `jailbreak`, `prophunt`.
+- `200` with a JSON array of strings, each one exactly one maplist.txt line, in the order to use: `["de_dust2", "surf_kitsune:3076153623"]`. Lines are parsed by the same code as maplist.txt, so blanks and `//` comments are skipped and `name:workshopid` works the same.
+- `404` means there is no such list.
+- Anything else is a failure: another status, no answer within 5 seconds, a body that is not a JSON array, an item that is not a string, an item with a line break or no map name, or a list with no maps. One bad item rejects the whole response.
+
+**When it is fetched.** On plugin load, on every map start, and on `css_reloadmaps` (!reloadmaps). The request runs off the main thread and the result is applied on the next frame, so a website edit lands at the next map without a restart. A map vote that is already open keeps its options: a list that arrives during a vote, or while a map change is scheduled, waits until that is over and then applies to the next vote.
+
+**When the URL fails** the map list is never emptied. In order, the plugin uses:
+1. the fresh list from the URL
+2. the last good list: the one in memory, or after a restart the cache file
+3. maplist.txt
+
+While a fetch is out (at most 5 seconds) the plugin already runs on 2 or 3, so it never waits on the network.
+
+**The cache file** is `csgo/rockthevote/maplist-cache-<port>.json` in the server's own game folder (e.g. `/home/container/game/csgo/rockthevote/maplist-cache-27015.json`). It holds the last good list and the URL it came from; a cache saved for another URL is ignored. It is deliberately not next to the config: the config and plugin folders are often shared between servers (bind mounts), and several servers rewriting one file there race at restart. The port in the name is a second guard. On Linux the plugin also checks /proc/self/mountinfo, and if the cache folder turns out to be a separate mount, or the port is unknown, it keeps the last good list in memory only and logs one WARN.
+
+**Logs.** One INFO line per fetch with where the maps came from and how many, e.g. `[RTV.MapList] Using 42 maps from https://...`. A failed fetch adds one WARN with the reason, e.g. `[RTV.MapList] Fetching https://... failed: no answer within 5s.`, and the INFO line names the fallback in use. There are no retries; the next map start is the retry.
 
 # Roadmap
 - [ ] Add vote percentage required for winning map (e.g. must receive 25% of the vote)
