@@ -7,7 +7,6 @@ using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Extensions;
-using CS2MenuManager.API.Class;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Localization;
@@ -68,7 +67,6 @@ namespace cs2_rockthevote
         private readonly StringLocalizer _localizer = new(stringLocalizer, "rtv.prefix");
         private readonly ILogger<Plugin> _logger = logger;
         private readonly PluginState _pluginState = pluginState;
-        private bool _hasMenuManager = false;
 
 
         public Config Config { get; set; } = new Config();
@@ -89,28 +87,6 @@ namespace cs2_rockthevote
                 RockTheVote.Api.MapListApi.Capability, () => _mapListApi);
 
             RegisterPluginCommandsAndEvents();
-        }
-        
-        public override void OnAllPluginsLoaded(bool hotReload)
-        {
-            // Check for CS2MenuManager installation
-            try
-            {
-                _hasMenuManager = MenuManager.MenuTypesList.Count > 0;
-            }
-            catch (Exception ex)
-            {
-                _hasMenuManager = false;
-                _logger.LogWarning(ex, "[RTV.Plugin] CS2MenuManager detection failed during OnAllPluginsLoaded.");
-            }
-
-            if (!_hasMenuManager)
-            {
-                Server.PrintToConsole("[RTV.Plugin] CS2MenuManager API not found! It is required to use RockTheVote. Download it from here: https://github.com/schwarper/CS2MenuManager");
-                Logger.LogError("[RTV.Plugin] CS2MenuManager API not found! It is required to use RockTheVote. Download it from here: https://github.com/schwarper/CS2MenuManager");
-                TerminateSelf("CS2MenuManager is required by RockTheVote but was not found. Download it from https://github.com/schwarper/CS2MenuManager");
-            }
-
         }
         
         public override void Unload(bool hotReload)
@@ -183,8 +159,8 @@ namespace cs2_rockthevote
             RegisterStartupCommand("css_voteextend", "Extends time for the current map", OnVoteExtendRoundTimeCommand);
             RegisterStartupCommand("css_ve", "Extends time for the current map", OnVoteExtendRoundTimeCommand);
             RegisterStartupCommand("css_timeleft", "Prints in the chat the timeleft in the current map", OnTimeLeft);
-            RegisterStartupCommand("css_maps", "Displays the available maps in console", OnMaplistCommand);
-            RegisterStartupCommand("css_maplist", "Displays the available maps in console", OnMaplistCommand);
+            RegisterStartupCommand("css_maps", "Opens the map list", OnMaplistCommand);
+            RegisterStartupCommand("css_maplist", "Opens the map list", OnMaplistCommand);
             RegisterStartupCommand("css_extend", "Extends time for the current map", OnExtendRoundTimeCommand);
             RegisterStartupCommand("css_votemap", "Vote to change to a map", OnVotemap);
 

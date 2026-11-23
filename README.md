@@ -12,8 +12,8 @@ General purpose map voting plugin.
 - RTV Command (Using !rtv in chat, or with Panorama system that is built into CS2 [F1 = Yes, F2 = No])
 - End of Map Vote. Supports map cooldown, map extension option.
 - Map cooldown persistence. Recently played maps stay on cooldown across server restarts (stored in mapcooldown.txt).
-- !revote command. During an active End of Map Vote, lets a player reopen the menu to change their vote. Uses a frozen WASD menu with no exit, so they must make a selection. Re-typing !revote while the menu is open does nothing (vote already active). Toggled via EndOfMapVote.EnableRevote.
-- Nominate command (nominate a map to appear in the map vote). Partial name matching, and conflicting map name resolution (surf_beginner, surf_beginner2). Limit 1 per player.
+- !revote command. During an active End of Map Vote, lets a player reopen the vote as a menu and change their vote. Re-typing !revote while the menu is open does nothing (vote already active). Toggled via EndOfMapVote.EnableRevote.
+- Nominate command (nominate a map to appear in the map vote). !nominate opens the map menu: search, filters and pages, so a few hundred maps stay usable. It marks the maps already nominated (and your own pick), the maps on cooldown (with when they are back) and the current map. Partial name matching, and conflicting map name resolution (surf_beginner, surf_beginner2): !nominate surf_beg opens the menu searched for it. Limit 1 per player.
 
   ![nominate](https://github.com/user-attachments/assets/6ac056bc-9842-4422-ac0d-c7cd814b3ba6)
   
@@ -22,7 +22,7 @@ General purpose map voting plugin.
 - Translated (Google Translate, ymmv)
 - Extend command. !extend 10 extends map by 10 minutes (flag restricted)
 - Vote Extend command. !ve/!votextend starts a vote to extend the current map (flag restricted)
-- Map Chooser command. !mapmenu opens a menu with your map list, selected map is changed to immediately (flag restricted)
+- Map Chooser command. !mapmenu opens the map menu with your whole map list; click a map, then click it again, and the map changes immediately (flag restricted)
 - Optional sound alert when map vote or !rtv starts (configurable sound)
 - Optional hud alert
   
@@ -37,17 +37,16 @@ General purpose map voting plugin.
 
 ![panoramavote](https://github.com/user-attachments/assets/31ebe223-225f-4cef-812e-3bf6c56e590d)
 ![voteextend](https://github.com/user-attachments/assets/5cfd9a5f-36a5-4a11-ae26-3e74d5387251)
-- ChatMenu/CenterHtmlMenu/WasdMenu/ConsoleMenu for EndOfMapVote/!nominate/!votemap
+- The map vote as a small Panorama card (vote_hud): vote with !1-!9 in chat, the card never takes your mouse or keys.
+- Clickable Panorama menus (rtv_menu) for !nominate, !maps, !votemap, !mapmenu and !revote. A layout cannot take a keystroke, so the search field asks for the text in chat. Set a MenuType to "ChatMenu" for CounterStrikeSharp's !1-!9 chat menu instead; it is also the fallback when the HUD cannot start.
 
-![wasdmenu](https://github.com/user-attachments/assets/1df185bf-4313-4010-81de-98111ae383dc)
 ![chatmenu](https://github.com/user-attachments/assets/8d7e9ee8-b26e-47b1-89d8-ced96b13a392)
-![hudmenu](https://github.com/user-attachments/assets/0fd37e45-bf7f-4f97-9b7b-7fab92352392)
 
 - Maplist Validator. Send to error log or Discord when a map is no longer available on the workshop. Automatically removes invalid workshop maps from the in-memory map list so they can't be nominated, voted for, or switched to (maplist.txt is left untouched). Optionally set a Steam Web API key to batch validation (100 IDs per request) instead of 1 request/second HTML checks.
 
   ![MapDiscordWebhook](https://github.com/user-attachments/assets/eaf8d706-abd1-4258-a7a3-b9cb44500802)
   ![WorkshopMapLog](https://github.com/user-attachments/assets/2f65dd9d-1ee9-4217-a753-81358973df2e)
-- !maps command. List all maps available in the console.
+- !maps command. Opens the map list menu: what is on now, on cooldown and nominated; a click nominates when you can. Without the HUD it prints the list to the console.
   
 ![mapscommand](https://github.com/user-attachments/assets/d4ab1377-0b29-45b6-bdaa-06b6a7664751)
 
@@ -59,7 +58,7 @@ General purpose map voting plugin.
 ## Requirements
 [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp) (Tested on v369)
 
-[CS2MenuManager](https://github.com/schwarper/CS2MenuManager) (Tested on v42)
+[PanoramaManager](https://www.nuget.org/packages/PanoramaManager) - bundled in the release zip. The layouts (`hud/panorama`: vote_hud and rtv_menu) ship in the workshop addon. CS2MenuManager is no longer needed.
 
 # Installation
 - Download the latest release from https://github.com/M-archand/cs2-rockthevote/releases
@@ -100,9 +99,9 @@ General purpose map voting plugin.
   },
   "EndOfMapVote": {
     "Enabled": true,
-    "EnableRevote": false, # true = players can type !revote to reopen the vote and change their choice (forced WASD menu, player frozen, no exit until they pick)
+    "EnableRevote": false, # true = players can type !revote to reopen the vote as a menu and change their choice
     "MapsToShow": 6, # How many maps to show in the vote. If IncludeExtendCurrentMap = true, the extension option takes up 1 slot
-    "MenuType": "WasdMenu", # The menu that will be used to show the vote. Options = ChatMenu, CenterHtmlMenu, WasdMenu, ConsoleMenu
+    "MenuType": "Interactive", # The vote as a menu (EnableHudVote off, and !revote). Interactive = the clickable HUD menu. ChatMenu = !1-!9 in chat. Old CS2MenuManager names (WasdMenu, ...) count as Interactive
     "ChangeMapImmediately": false, # false = change when the map ends. true = change as soon as the VoteDuration ends
     "VoteDuration": 150, # How long the map vote will last (this must be smaller than TriggerSecondsBeforeEnd)
     "SoundEnabled": false, # true = play a sound when the end of map vote starts.
@@ -123,13 +122,13 @@ General purpose map voting plugin.
   "Nominate": {
     "Enabled": true,
     "EnabledInWarmup": true,
-    "MenuType": "WasdMenu", # The menu that will be used to show the vote. Options = ChatMenu, CenterHtmlMenu, WasdMenu, ConsoleMenu
+    "MenuType": "Interactive", # Interactive = the clickable HUD map menu. ChatMenu = !1-!9 in chat
     "NominateLimit": 1, # How many maps a single player can nominate per map vote
     "Permission": "" # empty = anyone can use. "@css/vip" or "@css/admin,@css/mod" = any listed permission can use it
   },
   "Votemap": {
     "Enabled": false,
-    "MenuType": "WasdMenu", # The menu that will be used to show the vote. Options = ChatMenu, CenterHtmlMenu, WasdMenu, ConsoleMenu
+    "MenuType": "Interactive", # Interactive = the clickable HUD map menu. ChatMenu = !1-!9 in chat
     "VotePercentage": 50, # Percentage of votes required to pass the vote
     "ChangeMapImmediately": true,
     "EnabledInWarmup": false,
@@ -150,7 +149,7 @@ General purpose map voting plugin.
   },
   "MapChooser": {
     "Command": "mapmenu,mm", The command used to open the menu, multiple can be set
-    "MenuType": "WasdMenu", # The menu that will be used to show the vote. Options = ChatMenu, CenterHtmlMenu, WasdMenu, ConsoleMenu
+    "MenuType": "Interactive", # Interactive = the clickable HUD map menu. ChatMenu = !1-!9 in chat
     "Permission": "@css/root,@css/changemap" # empty = anyone can use. any listed permission can use it
   },
   "General": {

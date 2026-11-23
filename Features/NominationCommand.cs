@@ -1,10 +1,6 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Utils;
-using CS2MenuManager.API.Menu;
-using CS2MenuManager.API.Class;
-using CS2MenuManager.API.Enum;
 using cs2_rockthevote.Core;
 
 namespace cs2_rockthevote
@@ -40,15 +36,17 @@ namespace cs2_rockthevote
         private PluginState _pluginState;
         private MapCooldown _mapCooldown;
         private MapLister _mapLister;
+        private readonly MapMenu _menu;
         private Plugin? _plugin;
 
-        public NominationCommand(MapLister mapLister, GameRules gamerules, StringLocalizer localizer, PluginState pluginState, MapCooldown mapCooldown)
+        public NominationCommand(MapLister mapLister, GameRules gamerules, StringLocalizer localizer, PluginState pluginState, MapCooldown mapCooldown, MapMenu menu)
         {
             _mapLister = mapLister;
             _gamerules = gamerules;
             _localizer = localizer;
             _pluginState = pluginState;
             _mapCooldown = mapCooldown;
+            _menu = menu;
         }
 
         public void MarkMapExtended() => _mapExtended = true;
@@ -64,6 +62,10 @@ namespace cs2_rockthevote
             Nominations.Clear();
             _nominationsMap = map;
         }
+
+        // Counts as the menus show them: one per player per map
+        private int NominationCount(string map) =>
+            Nominations.Values.Count(list => list.Contains(map, StringComparer.OrdinalIgnoreCase));
         public void OnLoad(Plugin plugin)
         {
             _plugin = plugin;
@@ -103,25 +105,7 @@ namespace cs2_rockthevote
 
             if (string.IsNullOrEmpty(mapName))
             {
-                var title = _localizer.Localize("nominate.title");
-                var menuType = ConfigValue.Resolve(MenuManager.MenuTypesList, _nomConfig.MenuType, MenuTypeManager.GetDefaultMenu());
-
-                var menu = MenuManager.MenuByType(menuType, title, _plugin!);
-
-                foreach (var m in _mapLister.Maps!
-                            .Where(x => !MapNameHelper.GetBaseName(x.Name).Equals(Server.MapName, StringComparison.OrdinalIgnoreCase)))
-                {
-                    bool isCooldown = _mapCooldown.IsMapInCooldown(m.Name);
-                    string label = isCooldown ? $"{ChatColors.Grey}{m.Name}" : m.Name;
-                    string chosen = m.Name;
-
-                    menu.AddItem(label, (p, _) =>
-                    {
-                        Nominate(p, chosen);
-                    }, isCooldown ? DisableOption.DisableShowNumber : DisableOption.None);
-                }
-
-                menu.Display(player, 0);
+                _menu.Open(player, MenuSpec(browse: false), chat: MapMenu.WantsChat(_nomConfig.MenuType), toggle: true);
                 return;
             }
 
@@ -195,22 +179,100 @@ namespace cs2_rockthevote
                 .Count(m => m.Equals(mapName, StringComparison.OrdinalIgnoreCase));
 
             Server.PrintToChatAll(_localizer.LocalizeWithPrefix("nominate.nominated", player.PlayerName, mapName, totalVotes));
+
+            // Everyone browsing the list sees the new count
+            _menu.Refresh("nominate");
+            _menu.Refresh("maps");
         }
 
-        private void ShowMultipleMatchesMenu(CCSPlayerController player, List<string> matchingMaps)
+        /// <summary>!maps: the same list as !nominate, under its own title. Read-only while the player cannot nominate.</summary>
+        public void OpenMapList(CCSPlayerController player)
         {
-            var menu = new ChatMenu(_localizer.Localize("nominate.multiple-maps"), _plugin!);
+            _menu.Open(player, MenuSpec(browse: true), toggle: true);
+        }
 
-            foreach (var name in matchingMaps)
+        /// <summary>
+        /// Why <paramref name="player"/> cannot nominate right now, as the menu's plain text, or null when they can.
+        /// The same checks as <see cref="CommandHandler"/>, run again on every draw and every click.
+        /// </summary>
+        private string? Block(CCSPlayerController player)
+        {
+            if (!PermissionUtility.HasAny(player, _nomConfig.Permissions))
+                return _localizer.Localize("menu.closed.permission");
+
+            if (_pluginState.DisableCommands || !_nomConfig.Enabled || _pluginState.EofVoteHappening)
+                return _localizer.Localize("menu.closed.nominate");
+
+            if (_gamerules.WarmupRunning && !_nomConfig.EnabledInWarmup)
+                return _localizer.Localize("menu.closed.warmup");
+
+            int count = Nominations.TryGetValue(player.Slot, out var mine) ? mine.Count : 0;
+            if (_nomConfig.NominateLimit > 0 && count >= _nomConfig.NominateLimit)
+                return _localizer.Localize("menu.closed.limit", _nomConfig.NominateLimit);
+
+            return null;
+        }
+
+        private MapMenuSpec MenuSpec(bool browse) => new()
+        {
+            Kind = browse ? "maps" : "nominate",
+            Title = _ => _localizer.Localize(browse ? "menu.maps.title" : "menu.nominate.title"),
+            Rows = Rows,
+            Pick = (player, row) =>
             {
-                menu.AddItem(name, (p, _) => Nominate(p, name));
-            }
+                var block = Block(player);
+                if (block != null)
+                    return MapMenuResult.Stay(block);
 
-            menu.Display(player, 0);
+                Nominate(player, row.Key);
+                return MapMenuResult.Done;
+            },
+            Hint = player => Block(player) ?? _localizer.Localize("menu.hint.nominate"),
+            Now = _ => _menu.NowPlaying(),
+            MarkedFilter = count => _localizer.Localize("menu.filter.nominated", count),
+        };
+
+        /// <summary>Every map, with how many players nominated it and the player's own pick marked.</summary>
+        private List<MapMenuRow> Rows(CCSPlayerController player)
+        {
+            var block = Block(player);
+            Nominations.TryGetValue(player.Slot, out var mine);
+
+            return _menu.MapRows((map, row) =>
+            {
+                int count = NominationCount(map.Name);
+                if (count > 0 && row.Tone == MapRowTone.None)
+                {
+                    row = row with
+                    {
+                        Tone = MapRowTone.Marked,
+                        Tag = count == 1
+                            ? _localizer.Localize("menu.tag.nominated")
+                            : _localizer.Localize("menu.tag.nominated-n", count),
+                    };
+                }
+
+                if (mine != null && mine.Contains(map.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    row = row with
+                    {
+                        Mine = true,
+                        Enabled = false,
+                        Tag = _localizer.Localize("menu.tag.yours"),
+                        Reason = _localizer.Localize("menu.reason.nominated"),
+                    };
+                }
+                else if (block != null && row.Enabled)
+                {
+                    row = row with { Enabled = false, Reason = block };
+                }
+
+                return row;
+            });
         }
 
         // Attempt to resolve the user's text into exactly one map. If 0 matches -> send "invalid" and return null.
-        // If > 1 matches -> show the chat based menu and return null. Otherwise -> return the single map name.
+        // If > 1 matches -> open the menu searched for it and return null. Otherwise -> return the single map name.
         private string? ResolveMapNameOrPrompt(CCSPlayerController player, string input, StringLocalizer localizer)
         {
             // Exact match
@@ -230,7 +292,7 @@ namespace cs2_rockthevote
             // Found more than 1 match
             if (matches.Count > 1)
             {
-                ShowMultipleMatchesMenu(player, matches);
+                _menu.Open(player, MenuSpec(browse: false), query: input, chat: MapMenu.WantsChat(_nomConfig.MenuType));
                 return null;
             }
 
@@ -257,7 +319,11 @@ namespace cs2_rockthevote
             if (player == null)
                 return;
 
-            Nominations.Remove(player.Slot);
+            if (Nominations.Remove(player.Slot))
+            {
+                _menu.Refresh("nominate");
+                _menu.Refresh("maps");
+            }
         }
     }
 }

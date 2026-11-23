@@ -45,7 +45,13 @@ namespace cs2_rockthevote
         /// </summary>
         public bool EndWhenEveryoneVoted { get; set; } = true;
         public int MapsToShow { get; set; } = 6;
-        public string MenuType { get; set; } = "WasdMenu";
+
+        /// <summary>
+        /// The vote as a menu: for everyone when General.EnableHudVote is off, and for !revote. "ChatMenu" (or the old
+        /// "HudMenu") = a !1-!9 menu in chat. Anything else, "Interactive" by default and any old CS2MenuManager name
+        /// (WasdMenu, CenterHtmlMenu, ...) = the clickable HUD menu, which falls back to chat when the HUD is down.
+        /// </summary>
+        public string MenuType { get; set; } = "Interactive";
         public bool ChangeMapImmediately { get; set; } = false;
         public int VoteDuration { get; set; } = 150;
         public bool SoundEnabled { get; set; } = true;
@@ -67,7 +73,9 @@ namespace cs2_rockthevote
     public class VotemapConfig
     {
         public bool Enabled { get; set; } = false;
-        public string MenuType { get; set; } = "WasdMenu";
+
+        /// <summary>"ChatMenu" = the map list as a !1-!9 menu in chat; anything else = the clickable HUD menu.</summary>
+        public string MenuType { get; set; } = "Interactive";
         public int VotePercentage { get; set; } = 50;
         public bool ChangeMapImmediately { get; set; } = true;
         public bool EnabledInWarmup { get; set; } = false;
@@ -99,7 +107,9 @@ namespace cs2_rockthevote
     {
         public bool Enabled { get; set; } = true;
         public bool EnabledInWarmup { get; set; } = true;
-        public string MenuType { get; set; } = "WasdMenu";
+
+        /// <summary>"ChatMenu" = the map list as a !1-!9 menu in chat; anything else = the clickable HUD menu.</summary>
+        public string MenuType { get; set; } = "Interactive";
         public int NominateLimit { get; set; } = 1;
         public string Permission { get; set; } = "";
 
@@ -110,7 +120,9 @@ namespace cs2_rockthevote
     public class MapChooserConfig
     {
         public string Command { get; set; } = "mapmenu,mm";
-        public string MenuType { get; set; } = "WasdMenu";
+
+        /// <summary>"ChatMenu" = the map list as a !1-!9 menu in chat; anything else = the clickable HUD menu.</summary>
+        public string MenuType { get; set; } = "Interactive";
         public string Permission { get; set; } = "@css/changemap";
 
         [JsonIgnore]

@@ -1,7 +1,6 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
-using CS2MenuManager.API.Class;
 using Microsoft.Extensions.Logging;
 
 namespace cs2_rockthevote
@@ -11,16 +10,18 @@ namespace cs2_rockthevote
         private readonly ILogger<MapChooserCommand> _logger;
         private readonly StringLocalizer _localizer;
         private readonly MapLister _mapLister;
+        private readonly MapMenu _menu;
         private Plugin? _plugin;
 
         private string[] _permissions = ["@css/root", "@css/admin"];
         private MapChooserConfig _config = new();
         private readonly HashSet<string> _registeredAliases = new(StringComparer.OrdinalIgnoreCase);
 
-        public MapChooserCommand(StringLocalizer localizer, MapLister mapLister, ILogger<MapChooserCommand> logger)
+        public MapChooserCommand(StringLocalizer localizer, MapLister mapLister, MapMenu menu, ILogger<MapChooserCommand> logger)
         {
             _localizer = localizer;
             _mapLister = mapLister;
+            _menu = menu;
             _logger = logger;
         }
 
@@ -56,40 +57,64 @@ namespace cs2_rockthevote
             if (player == null || !player.IsValid)
                 return;
 
-            if (_permissions.Length > 0)
+            if (!Allowed(player))
             {
-                bool allowed = PermissionUtility.HasAny(player, _permissions);
-                if (!allowed)
-                {
-                    player.PrintToChat(_localizer.LocalizeWithPrefix("general.incorrect.permission"));
-                    return;
-                }
+                player.PrintToChat(_localizer.LocalizeWithPrefix("general.incorrect.permission"));
+                return;
             }
+
             var maps = _mapLister.Maps;
             if (maps is null || maps.Length == 0)
                 return;
 
-            var menuType = ConfigValue.Resolve(MenuManager.MenuTypesList, _config.MenuType, MenuTypeManager.GetDefaultMenu());
+            _menu.Open(player, MenuSpec(), chat: MapMenu.WantsChat(_config.MenuType), toggle: true);
+        }
 
-            var menu = MenuManager.MenuByType(menuType, _localizer.Localize("general.choose.map"), _plugin!);
+        private bool Allowed(CCSPlayerController player) =>
+            _permissions.Length == 0 || PermissionUtility.HasAny(player, _permissions);
 
-            foreach (var map in maps)
+        /// <summary>
+        /// Every map, the current one and the cooldown included: an admin may change to any of them. Two clicks,
+        /// since one changes the map for the whole server right away.
+        /// </summary>
+        private MapMenuSpec MenuSpec() => new()
+        {
+            Kind = "mapchooser",
+            Title = _ => _localizer.Localize("menu.mapchooser.title"),
+            Rows = _ => _menu.MapRows(unavailableClickable: true),
+            Confirm = row => _localizer.Localize("menu.status.confirm", row.Name),
+            Pick = (player, row) =>
             {
-                menu.AddItem(map.Name, (p, _) =>
-                {
-                    if (p == null || !p.IsValid)
-                        return;
+                // Checked again: the click comes from a client
+                if (!Allowed(player))
+                    return MapMenuResult.Stay(_localizer.Localize("menu.closed.permission"));
 
-                    MenuManager.CloseActiveMenu(p);
+                var map = _mapLister.Maps.FirstOrDefault(m => string.Equals(m.Name, row.Key, StringComparison.OrdinalIgnoreCase));
+                if (map is null)
+                    return MapMenuResult.Stay(_localizer.Localize("menu.reason.gone"));
 
-                    if (!string.IsNullOrEmpty(map.Id) && ulong.TryParse(map.Id, out var mapId))
-                        Server.ExecuteCommand($"host_workshop_map {mapId}");
-                    else
-                        Server.ExecuteCommand($"changelevel {map.Name}");
-                });
-            }
+                ChangeTo(player, map);
+                return MapMenuResult.Done;
+            },
+            Hint = _ => _localizer.Localize("menu.hint.mapchooser"),
+            Now = _ => _menu.NowPlaying(),
+        };
 
-            menu.Display(player, 0);
+        /// <summary>
+        /// Straight away, as the old menu did. The name goes to changelevel without its display part
+        /// ("surf_nyx (Tier 1, Linear)" is not a map the engine knows); a workshop map goes by its id.
+        /// </summary>
+        private void ChangeTo(CCSPlayerController admin, Map map)
+        {
+            var name = MapNameHelper.GetBaseName(map.Name);
+            _logger.LogInformation("[RTV.MapChooser] {Admin} changed the map. map={Map} id={Id}", admin.PlayerName, map.Name, map.Id);
+
+            if (!string.IsNullOrEmpty(map.Id) && ulong.TryParse(map.Id, out var mapId))
+                Server.ExecuteCommand($"host_workshop_map {mapId}");
+            else if (Server.IsMapValid(name))
+                Server.ExecuteCommand($"changelevel {name}");
+            else
+                Server.ExecuteCommand($"ds_workshop_changelevel {name}");
         }
     }
 }

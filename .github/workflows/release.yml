@@ -62,7 +62,7 @@ jobs:
 
           # CSS install layout: archive root holds RockTheVote-v{version}/
           #   addons/counterstrikesharp/plugins/RockTheVote/ -> plugin dll + deps + lang + maplist example
-          # Note: CS2MenuManager is a required separate dependency and is NOT bundled here.
+          # The HUD layouts (hud/panorama) ship in the workshop addon, not here.
           rm -rf package
           ROOT="package/${FOLDER}"
           PLUGIN_DIR="${ROOT}/addons/counterstrikesharp/plugins/RockTheVote"

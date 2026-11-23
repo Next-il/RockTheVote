@@ -1,0 +1,275 @@
+<root>
+	<styles>
+		<include src="s2r://panorama/styles/custom_game/hud_shared.vcss_c" />
+		<include src="s2r://panorama/styles/custom_game/rtv_menu.vcss_c" />
+	</styles>
+
+	<!--
+		RockTheVote map menus: !nominate, !maps, !votemap, the admin !mapmenu, and !revote (also the map vote itself
+		when General.EnableHudVote is off). One mouse-driven card for all of them, driven by CrossCutting/MapMenu.cs.
+		The live vote card is vote_hud.xml and is not this.
+
+		One 760px card: the header, a search field with filter chips, the maps in two columns of 8 (16 a page), a
+		footer with the hint, a status line and the pager. The vote menus use one wide column (cols1) and no tools row (notools).
+		A layout cannot take a keystroke, so the search field arms a chat prompt (PanelHandle.TryPromptText).
+
+		CONTRACT (MapMenu.cs must match)
+		  RootPanelId = "RtvMenuRoot"   RevealClass = "show"   CloseButtonId = "mm_close"   RowCount = 0
+		  CaptureInput = true           HideHud = None         SharedText = false
+
+		POOL
+		  mm_i0..mm_i15     map cells, column-major: mm_i0..7 the left column, mm_i8..15 the right one
+
+		BUTTONS (PanelAction.Button, by id)
+		  mm_close                       close (the library handles it)
+		  mm_iN                          pick the map in cell N
+		  mm_search                      start (or stop) typing a search in chat
+		  mm_clear                       drop the search
+		  mm_f0 mm_f1 mm_f2              filter: all, available, marked (nominated / voted)
+		  mm_prev mm_next                page back / forward
+
+		DIALOG VARIABLES
+		  mm_title mm_tag mm_now_k mm_now          header
+		  mm_search_k mm_q mm_f0 mm_f1 mm_f2       search field label and text, filter chip labels
+		  mm_iN_n mm_iN_d mm_iN_t                  cell: map name, detail ("Tier 1, Linear"), right-hand tag
+		  mm_empty mm_hint mm_status mm_page       empty list, footer hint, footer status, "3 / 20"
+		  mm_typed                                 the prompt's echo (not drawn; MapMenu draws mm_q itself)
+
+		CLASSES THE SERVER TOGGLES (none is authored on: every one starts off)
+		  RtvMenuRoot  cols1 (one wide column) | notools (no search row) | nofind (no search field) | nofilter (no chips)
+		               paged | empty
+		               typing (the search prompt is armed) | has-query
+		  mm_fN        on | hidden
+		  mm_iN        hidden | off (not clickable) | mine | armed | t-mark | t-cool | t-cur | has-bar
+		  mm_iN_bar    b1 .. b20 (5% a step, a clip; none = empty)
+	-->
+	<Panel class="hud-screen" hittest="false">
+		<Panel id="RtvMenuRoot" class="hud-root hud-card mm-root">
+
+			<!-- ======================================================= header -->
+			<Panel class="hud-head">
+				<Label class="hud-title mm-title" text="{s:mm_title}" hittest="false" />
+				<Label class="hud-tag mm-tag" text="{s:mm_tag}" hittest="false" />
+				<Panel class="fill" hittest="false" />
+				<Panel class="mm-now" hittest="false">
+					<Label class="mm-now-k" text="{s:mm_now_k}" hittest="false" />
+					<Label class="mm-now-v" text="{s:mm_now}" hittest="false" />
+				</Panel>
+				<Button id="mm_close" class="hud-exit"><Label class="hud-x" text="&#x2715;" hittest="false" /></Button>
+			</Panel>
+
+			<!-- ======================================================= search + filters -->
+			<Panel class="mm-tools" hittest="false">
+				<Button id="mm_search" class="mm-search">
+					<Panel class="mm-search-edge" hittest="false" />
+					<Label class="mm-search-k" text="{s:mm_search_k}" hittest="false" />
+					<Label class="mm-search-q" text="{s:mm_q}" hittest="false" />
+				</Button>
+				<Button id="mm_clear" class="mm-clear"><Label class="mm-clear-x" text="&#x2715;" hittest="false" /></Button>
+				<Panel class="mm-chips" hittest="false">
+					<Button id="mm_f0" class="mm-chip mm-chip-all"><Label class="mm-chip-l" text="{s:mm_f0}" hittest="false" /></Button>
+					<Button id="mm_f1" class="mm-chip mm-chip-av"><Label class="mm-chip-l" text="{s:mm_f1}" hittest="false" /></Button>
+					<Button id="mm_f2" class="mm-chip mm-chip-mk"><Label class="mm-chip-l" text="{s:mm_f2}" hittest="false" /></Button>
+				</Panel>
+			</Panel>
+
+			<!-- ======================================================= the maps -->
+			<Panel class="mm-body" hittest="false">
+				<Label class="mm-empty" text="{s:mm_empty}" hittest="false" />
+				<Panel class="mm-cols" hittest="false">
+					<Panel class="mm-col mm-col0" hittest="false">
+						<Button id="mm_i0" class="mm-i">
+							<Panel id="mm_i0_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i0_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i0_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i0_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i1" class="mm-i">
+							<Panel id="mm_i1_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i1_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i1_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i1_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i2" class="mm-i">
+							<Panel id="mm_i2_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i2_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i2_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i2_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i3" class="mm-i">
+							<Panel id="mm_i3_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i3_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i3_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i3_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i4" class="mm-i">
+							<Panel id="mm_i4_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i4_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i4_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i4_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i5" class="mm-i">
+							<Panel id="mm_i5_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i5_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i5_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i5_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i6" class="mm-i">
+							<Panel id="mm_i6_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i6_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i6_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i6_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i7" class="mm-i">
+							<Panel id="mm_i7_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i7_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i7_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i7_t}" hittest="false" />
+							</Panel>
+						</Button>
+					</Panel>
+					<Panel class="mm-col mm-col1" hittest="false">
+						<Button id="mm_i8" class="mm-i">
+							<Panel id="mm_i8_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i8_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i8_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i8_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i9" class="mm-i">
+							<Panel id="mm_i9_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i9_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i9_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i9_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i10" class="mm-i">
+							<Panel id="mm_i10_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i10_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i10_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i10_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i11" class="mm-i">
+							<Panel id="mm_i11_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i11_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i11_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i11_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i12" class="mm-i">
+							<Panel id="mm_i12_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i12_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i12_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i12_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i13" class="mm-i">
+							<Panel id="mm_i13_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i13_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i13_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i13_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i14" class="mm-i">
+							<Panel id="mm_i14_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i14_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i14_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i14_t}" hittest="false" />
+							</Panel>
+						</Button>
+						<Button id="mm_i15" class="mm-i">
+							<Panel id="mm_i15_bar" class="mm-i-bar" hittest="false" />
+							<Panel class="mm-i-edge" hittest="false" />
+							<Panel class="mm-i-in" hittest="false">
+								<Panel class="mm-i-txt" hittest="false">
+									<Label class="mm-i-n" text="{s:mm_i15_n}" hittest="false" />
+									<Label class="mm-i-d" text="{s:mm_i15_d}" hittest="false" />
+								</Panel>
+								<Label class="mm-i-t" text="{s:mm_i15_t}" hittest="false" />
+							</Panel>
+						</Button>
+					</Panel>
+				</Panel>
+			</Panel>
+
+			<!-- ======================================================= footer -->
+			<Panel class="mm-foot" hittest="false">
+				<Label class="mm-hint" text="{s:mm_hint}" hittest="false" />
+				<Label class="mm-status" text="{s:mm_status}" hittest="false" />
+				<Panel class="mm-pager" hittest="false">
+					<Button id="mm_prev" class="mm-pg"><Label class="mm-pg-l" text="&lt;" hittest="false" /></Button>
+					<Label class="mm-pg-t" text="{s:mm_page}" hittest="false" />
+					<Button id="mm_next" class="mm-pg"><Label class="mm-pg-l" text="&gt;" hittest="false" /></Button>
+				</Panel>
+			</Panel>
+		</Panel>
+	</Panel>
+</root>

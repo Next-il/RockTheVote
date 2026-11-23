@@ -1,0 +1,391 @@
+/*
+    rtv_menu - the RockTheVote map menus: !nominate, !maps, !votemap, !mapmenu and !revote. Include hud_shared first.
+
+    The shell (hud-root / hud-card / hud-head / hud-exit) is hud_shared's, so it reads as one system with /rank,
+    !vip and the round picker: a 760px card, square corners, the gold left edge, fill-only cells, no borders around
+    them, no gradients on text.
+
+    Fixed heights on every section, so paging, searching or filtering never resizes the card:
+    head 48 + tools 46 + body 308 + foot 35 = 437. The vote menus drop the tools row (notools): 391.
+
+    Hover is the client's own (:hover needs the input capture the menu holds). The click is what reaches the
+    server, and it checks every click again: an "off" cell only looks disabled here.
+*/
+
+.mm-root { width: 760px; }
+.mm-root .hud-title { width: fit-children; font-size: 19px; letter-spacing: 1.8px; white-space: nowrap; }
+.mm-tag { margin-left: 12px; white-space: nowrap; }
+
+.fill { width: fill-parent-flow(1.0); height: 1px; }
+
+/* ------------------------------------------------------------------ header: what is on now */
+
+.mm-now {
+    width: fit-children;
+    vertical-align: center;
+    flow-children: right;
+    margin-right: 16px;
+}
+.mm-now-k {
+    vertical-align: bottom;
+    margin: 0px 8px 2px 0px;
+    font-family: Stratum2 Mono;
+    font-size: 9.5px;
+    letter-spacing: 1.4px;
+    color: #61686f;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.mm-now-v {
+    vertical-align: bottom;
+    font-family: Stratum2 Medium Condensed;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 0.8px;
+    color: #aeb5bd;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ search + filter chips */
+
+/* 16px left, 13px right: the 3px edge is inside the card's 760px */
+.mm-tools {
+    width: 100%;
+    height: 46px;
+    flow-children: right;
+    padding: 8px 13px 8px 16px;
+    border-bottom: 1px solid #ffffff0f;
+}
+.mm-root.notools .mm-tools { visibility: collapse; }
+/* Chips without a search field (the admin's change map has both, a vote neither) */
+.mm-root.nofind .mm-search,
+.mm-root.nofind .mm-clear { visibility: collapse; }
+.mm-root.nofind .mm-chips { margin-left: 0px; }
+
+.mm-search {
+    width: fill-parent-flow(1.0);
+    height: 30px;
+    flow-children: right;
+    background-color: #ffffff0a;
+    transition-property: background-color;
+    transition-duration: 0.2s;
+}
+.mm-search:hover { background-color: #ffffff12; }
+.mm-search-edge {
+    width: 2px;
+    height: 100%;
+    background-color: #f0a531;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.2s;
+}
+.mm-root.typing .mm-search-edge { opacity: 1; }
+.mm-root.typing .mm-search { background-color: #f0a53114; }
+
+.mm-search-k {
+    width: fit-children;
+    vertical-align: center;
+    margin-left: 10px;
+    font-family: Stratum2 Mono;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: #f0a531;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.mm-search-q {
+    width: fill-parent-flow(1.0);
+    vertical-align: center;
+    margin: 0px 10px 0px 10px;
+    font-family: Stratum2 Regular;
+    font-size: 13px;
+    color: #6b737c;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.mm-root.has-query .mm-search-q { color: #ffffff; }
+.mm-root.typing .mm-search-q { color: #f0a531; }
+
+.mm-clear {
+    visibility: collapse;
+    width: 30px;
+    height: 30px;
+    margin-left: 4px;
+    background-color: #ffffff0a;
+    transition-property: background-color;
+    transition-duration: 0.2s;
+}
+.mm-root.has-query .mm-clear { visibility: visible; }
+.mm-clear:hover { background-color: #e0432f; }
+.mm-clear-x {
+    width: 100%;
+    font-size: 11px;
+    color: #9aa2ac;
+    text-align: center;
+    vertical-align: center;
+}
+.mm-clear:hover .mm-clear-x { color: #ffffff; }
+
+.mm-chips {
+    width: fit-children;
+    height: 30px;
+    flow-children: right;
+    margin-left: 10px;
+}
+.mm-root.nofilter .mm-chips { visibility: collapse; }
+.mm-chip {
+    height: 30px;
+    margin-left: 4px;
+    background-color: #ffffff07;
+    transition-property: background-color;
+    transition-duration: 0.2s;
+}
+.mm-chip:first-child { margin-left: 0px; }
+.mm-chip:hover { background-color: #ffffff12; }
+.mm-chip.on { background-color: #f0a531; }
+.mm-chip-all { width: 56px; }
+.mm-chip-av { width: 96px; }
+.mm-chip-mk { width: 132px; }
+/* No letter-spacing: it is counted after the last character too, and centred text drifts left */
+.mm-chip-l {
+    width: 100%;
+    vertical-align: center;
+    font-family: Stratum2 Mono;
+    font-size: 10px;
+    color: #aeb5bd;
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.mm-chip.on .mm-chip-l { color: #14110a; font-weight: bold; }
+
+/* ------------------------------------------------------------------ the maps: two columns of 8 */
+
+/* 8 cells of 32 + 7 gaps of 4 = 284, plus 12 + 12 padding */
+.mm-body {
+    width: 100%;
+    height: 308px;
+    padding: 12px 13px 12px 16px;
+}
+
+.mm-empty {
+    visibility: collapse;
+    width: 100%;
+    horizontal-align: center;
+    vertical-align: center;
+    font-family: Stratum2 Regular;
+    font-size: 13px;
+    color: #8b939c;
+    text-align: center;
+}
+.mm-root.empty .mm-empty { visibility: visible; }
+.mm-root.empty .mm-cols { visibility: collapse; }
+
+.mm-cols {
+    width: 100%;
+    height: 100%;
+    flow-children: right;
+}
+/* 360 + 8 + 360 = 728, what is left of 760 after the edge and the padding */
+.mm-col {
+    width: 360px;
+    height: 100%;
+    flow-children: down;
+}
+.mm-col1 { margin-left: 8px; }
+.mm-root.cols1 .mm-col0 { width: 100%; }
+.mm-root.cols1 .mm-col1 { visibility: collapse; }
+
+/* ------------------------------------------------------------------ a map cell */
+
+.mm-i {
+    width: 100%;
+    height: 32px;
+    margin-top: 4px;
+    background-color: #ffffff07;
+    transition-property: background-color;
+    transition-duration: 0.2s;
+}
+.mm-i:first-child { margin-top: 0px; }
+
+/* The vote share, behind the text. Always full width, revealed by a clip in 5% steps (b1..b20). */
+.mm-i-bar {
+    visibility: collapse;
+    width: 100%;
+    height: 100%;
+    background-color: #ffffff0d;
+    clip: rect( 0%, 0%, 100%, 0% );
+    transition-property: clip, background-color;
+    transition-duration: 0.2s;
+    transition-timing-function: ease-out;
+}
+.mm-i.has-bar .mm-i-bar { visibility: visible; }
+.mm-i.mine .mm-i-bar { background-color: #f0a53126; }
+
+/* The gold edge on hover: a 2px panel, not an inset box-shadow */
+.mm-i-edge {
+    width: 2px;
+    height: 100%;
+    horizontal-align: left;
+    background-color: #f0a531;
+    opacity: 0;
+    transition-property: opacity, background-color;
+    transition-duration: 0.2s;
+}
+
+.mm-i-in {
+    width: 100%;
+    height: 100%;
+    flow-children: right;
+    padding: 0px 12px 0px 14px;
+}
+/* clip, not the default squish: a long name is cut, the row is never scaled down to fit it */
+.mm-i-txt {
+    width: fill-parent-flow(1.0);
+    height: 100%;
+    flow-children: right;
+    overflow: clip;
+}
+.mm-i-n {
+    width: fit-children;
+    vertical-align: center;
+    font-family: Stratum2 Medium Condensed;
+    font-size: 15px;
+    letter-spacing: 0.4px;
+    color: #e6e9ec;
+    white-space: nowrap;
+}
+.mm-i-d {
+    width: fill-parent-flow(1.0);
+    vertical-align: center;
+    margin-left: 8px;
+    font-family: Stratum2 Regular;
+    font-size: 11.5px;
+    color: #6b737c;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.mm-i-t {
+    width: fit-children;
+    vertical-align: center;
+    margin-left: 8px;
+    font-family: Stratum2 Mono;
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    color: #8b939c;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.mm-i:hover { background-color: #f0a5311a; }
+.mm-i:hover .mm-i-edge { opacity: 1; }
+.mm-i:hover .mm-i-n { color: #ffffff; }
+
+/* Marked: nominated, or voted for */
+.mm-i.t-mark .mm-i-t { color: #f0a531; }
+/* On cooldown: the map dims, the tag says when it is back */
+.mm-i.t-cool .mm-i-n { color: #6b737c; }
+.mm-i.t-cool .mm-i-t { color: #6b737c; }
+/* The map being played */
+.mm-i.t-cur { background-color: #4caf6d14; }
+.mm-i.t-cur .mm-i-n { color: #9aa2ac; }
+.mm-i.t-cur .mm-i-t { color: #4caf6d; }
+
+/* Not clickable: no hover light. The server ignores the click too. */
+.mm-i.off:hover { background-color: #ffffff07; }
+.mm-i.off:hover .mm-i-edge { opacity: 0; }
+.mm-i.off:hover .mm-i-n { color: #e6e9ec; }
+.mm-i.off.t-cool:hover .mm-i-n { color: #6b737c; }
+.mm-i.off.t-cur:hover { background-color: #4caf6d14; }
+.mm-i.off.t-cur:hover .mm-i-n { color: #9aa2ac; }
+
+/* This player's own pick */
+.mm-i.mine { background-color: #f0a53114; }
+.mm-i.mine .mm-i-edge { opacity: 1; }
+.mm-i.mine .mm-i-n { color: #f0a531; }
+.mm-i.mine .mm-i-t { color: #f0a531; }
+.mm-i.mine.off:hover { background-color: #f0a53114; }
+.mm-i.mine.off:hover .mm-i-edge { opacity: 1; }
+.mm-i.mine.off:hover .mm-i-n { color: #f0a531; }
+
+/* The first of two clicks (the admin's change map): red until the second one */
+.mm-i.armed { background-color: #e0432f1f; }
+.mm-i.armed .mm-i-edge { opacity: 1; background-color: #e0432f; }
+.mm-i.armed .mm-i-n { color: #ffffff; }
+.mm-i.armed .mm-i-t { color: #e0432f; }
+.mm-i.armed:hover { background-color: #e0432f33; }
+
+/* ------------------------------------------------------------------ footer */
+
+.mm-foot {
+    width: 100%;
+    height: 35px;
+    flow-children: right;
+    padding: 0px 16px 2px 16px;
+    border-top: 1px solid #ffffff0f;
+}
+.mm-hint, .mm-status, .mm-pg-t, .mm-pg-l {
+    vertical-align: center;
+    font-family: Stratum2 Mono;
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.mm-hint {
+    width: fill-parent-flow(1.0);
+    color: #4b525a;
+    text-overflow: ellipsis;
+}
+.mm-status {
+    width: fit-children;
+    margin-left: 12px;
+    color: #f0a531;
+}
+
+.mm-pager {
+    visibility: collapse;
+    width: fit-children;
+    flow-children: right;
+    vertical-align: center;
+    margin-left: 12px;
+}
+.mm-root.paged .mm-pager { visibility: visible; }
+.mm-pg {
+    width: 20px;
+    height: 16px;
+    vertical-align: center;
+    background-color: #ffffff0a;
+    transition-property: background-color;
+    transition-duration: 0.2s;
+}
+.mm-pg:hover { background-color: #f0a531; }
+.mm-pg-l { horizontal-align: center; color: #aeb5bd; }
+.mm-pg:hover .mm-pg-l { color: #14110a; }
+.mm-pg-t { margin: 0px 8px 0px 8px; color: #aeb5bd; }
+
+/* ------------------------------------------------------------------ the bar ladder */
+
+.mm-i-bar.b1 { clip: rect( 0%, 5%, 100%, 0% ); }
+.mm-i-bar.b2 { clip: rect( 0%, 10%, 100%, 0% ); }
+.mm-i-bar.b3 { clip: rect( 0%, 15%, 100%, 0% ); }
+.mm-i-bar.b4 { clip: rect( 0%, 20%, 100%, 0% ); }
+.mm-i-bar.b5 { clip: rect( 0%, 25%, 100%, 0% ); }
+.mm-i-bar.b6 { clip: rect( 0%, 30%, 100%, 0% ); }
+.mm-i-bar.b7 { clip: rect( 0%, 35%, 100%, 0% ); }
+.mm-i-bar.b8 { clip: rect( 0%, 40%, 100%, 0% ); }
+.mm-i-bar.b9 { clip: rect( 0%, 45%, 100%, 0% ); }
+.mm-i-bar.b10 { clip: rect( 0%, 50%, 100%, 0% ); }
+.mm-i-bar.b11 { clip: rect( 0%, 55%, 100%, 0% ); }
+.mm-i-bar.b12 { clip: rect( 0%, 60%, 100%, 0% ); }
+.mm-i-bar.b13 { clip: rect( 0%, 65%, 100%, 0% ); }
+.mm-i-bar.b14 { clip: rect( 0%, 70%, 100%, 0% ); }
+.mm-i-bar.b15 { clip: rect( 0%, 75%, 100%, 0% ); }
+.mm-i-bar.b16 { clip: rect( 0%, 80%, 100%, 0% ); }
+.mm-i-bar.b17 { clip: rect( 0%, 85%, 100%, 0% ); }
+.mm-i-bar.b18 { clip: rect( 0%, 90%, 100%, 0% ); }
+.mm-i-bar.b19 { clip: rect( 0%, 95%, 100%, 0% ); }
+.mm-i-bar.b20 { clip: rect( 0%, 100%, 100%, 0% ); }

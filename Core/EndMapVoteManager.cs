@@ -6,8 +6,7 @@ using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
-using CS2MenuManager.API.Class;
-using CS2MenuManager.API.Menu;
+using CounterStrikeSharp.API.Modules.Menu;
 using cs2_rockthevote.Core;
 using System.Data;
 using Microsoft.Extensions.Logging;
@@ -29,6 +28,7 @@ namespace cs2_rockthevote
         private readonly PluginState _pluginState;
         private readonly MapCooldown _mapCooldown;
         private readonly GameRules _gameRules;
+        private readonly MapMenu _menu;
         private Timer? Timer;
         private Timer? _nextVoteTimer;
         private Timer? _chatMapChoiceTimer;
@@ -38,6 +38,9 @@ namespace cs2_rockthevote
         List<string> mapsElected = new();
         private readonly Dictionary<int, string> _playerVotes = new();
         private readonly HashSet<int> _revoteMenuOpen = new();
+
+        /// <summary>Slots given the vote as CounterStrikeSharp's chat menu, so the end of the vote closes only those.</summary>
+        private readonly HashSet<int> _chatMenuSlots = new();
         private readonly List<string> _currentVoteOptions = new();
         private int _canVote = 0;
         private bool _activeVoteIsRtv = false;
@@ -60,8 +63,12 @@ namespace cs2_rockthevote
         private const float ResultSeconds = 3.0f;
         public IReadOnlyList<KeyValuePair<string, int>> SortedTopVotes => _sortedTopVotes;
 
-        /// <summary>Redraws the vote card. Called wherever the tallies change.</summary>
-        private void RefreshHud() => Hud?.Update(Votes, _playerVotes);
+        /// <summary>Redraws the vote card and any open vote menu. Called wherever the tallies change.</summary>
+        private void RefreshHud()
+        {
+            Hud?.Update(Votes, _playerVotes);
+            _menu.Refresh("vote");
+        }
 
         private void RebuildSortedTopVotes()
         {
@@ -90,9 +97,11 @@ namespace cs2_rockthevote
             ExtendRoundTimeManager extendRoundTimeManager,
             TimeLimitManager timeLimitManager,
             GameRules gameRules,
+            MapMenu menu,
             ILogger<EndMapVoteManager> logger
         )
         {
+            _menu = menu;
             _mapLister = mapLister;
             _changeMapManager = changeMapManager;
             _nominationManager = nominationManager;
@@ -162,6 +171,7 @@ namespace cs2_rockthevote
             Votes.Clear();
             _playerVotes.Clear();
             _revoteMenuOpen.Clear();
+            _chatMenuSlots.Clear();
             _currentVoteOptions.Clear();
             _sortedTopVotes = new();
             TimeLeft = 0;
@@ -412,62 +422,89 @@ namespace cs2_rockthevote
                 return;
 
             // Already showing a revote menu for this player - their vote is active, ignore repeat requests
+            if (VoteMenuOnHud)
+            {
+                if (!_menu.IsOpenFor(player, "vote"))
+                    OpenVoteMenu(player, _activeVoteIsRtv, allowRevote: true);
+                return;
+            }
+
             if (!_revoteMenuOpen.Add(player.Slot))
                 return;
 
-            int menuTimeLeft = Math.Max(TimeLeft, 1);
-            DisplayRevoteMenu(player, _currentVoteOptions, menuTimeLeft, _activeVoteIsRtv);
+            OpenVoteMenu(player, _activeVoteIsRtv, allowRevote: true);
         }
 
-        // Revote always uses a frozen WASD menu with no exit button, forcing the player to make a selection
-        private void DisplayRevoteMenu(CCSPlayerController player, IEnumerable<string> voteOptions, int durationSeconds, bool isRtv)
+        /// <summary>
+        /// The vote as a menu: for everyone when the vote card is off, and for !revote. MenuType "ChatMenu" (and the
+        /// old "HudMenu", the center-text list) keeps it in chat; anything else is the HUD menu.
+        /// </summary>
+        private bool VoteMenuOnHud => _menu.Available && !ConfigValue.IsAny(_endMapConfig.MenuType, "ChatMenu", "HudMenu");
+
+        private void OpenVoteMenu(CCSPlayerController player, bool isRtv, bool allowRevote)
         {
             if (_plugin == null || !player.IsValid)
                 return;
 
-            var title = _localizer.Localize("emv.hud.menu-title");
-            var menu = new WasdMenu(title, _plugin)
-            {
-                ExitButton = false,
-                WasdMenu_FreezePlayer = true
-            };
+            bool hud = VoteMenuOnHud;
+            if (!hud)
+                _chatMenuSlots.Add(player.Slot);
 
-            foreach (var option in voteOptions)
-            {
-                var chosen = option;
-                menu.AddItem(chosen, (p, _) =>
-                {
-                    _revoteMenuOpen.Remove(p.Slot);
-
-                    MapVoted(p, chosen, isRtv, allowRevote: true);
-                });
-            }
-
-            menu.Display(player, durationSeconds);
+            _menu.Open(player, VoteMenuSpec(isRtv, allowRevote), chat: !hud);
         }
 
-        private void DisplayVoteMenu(CCSPlayerController player, IEnumerable<string> voteOptions, int durationSeconds, bool isRtv, bool allowRevote)
+        /// <summary>
+        /// The options in vote order with their tallies, the player's own pick marked. Without a revote a player who
+        /// voted gets every row locked, which is what the old menu did by closing.
+        /// </summary>
+        private MapMenuSpec VoteMenuSpec(bool isRtv, bool allowRevote) => new()
         {
-            if (_plugin == null || !player.IsValid)
-                return;
-
-            var title = _localizer.Localize("emv.hud.menu-title");
-            var menuType = ConfigValue.Resolve(MenuManager.MenuTypesList, _endMapConfig.MenuType, MenuTypeManager.GetDefaultMenu());
-
-            var menu = MenuManager.MenuByType(menuType, title, _plugin);
-            if (menu is ChatMenu)
-                menu.ExitButton = false;
-
-            foreach (var option in voteOptions)
+            Kind = "vote",
+            Title = _ => _localizer.Localize(isRtv ? "menu.vote.title-rtv" : "menu.vote.title"),
+            Rows = player => VoteMenuRows(player, allowRevote),
+            Pick = (player, row) =>
             {
-                var chosen = option;
-                menu.AddItem(chosen, (p, _) =>
-                {
-                    MapVoted(p, chosen, isRtv, allowRevote);
-                });
+                _revoteMenuOpen.Remove(player.Slot);
+                if (!_pluginState.EofVoteHappening || Timer is null)
+                    return MapMenuResult.Stay(_localizer.Localize("menu.reason.vote-over"));
+
+                MapVoted(player, row.Key, isRtv, allowRevote);
+                return MapMenuResult.Done;
+            },
+            Hint = player => _localizer.Localize(_playerVotes.ContainsKey(player.Slot) ? "menu.hint.revote" : "menu.hint.vote"),
+            Now = _ => TimeLeft > 0 ? (_localizer.Localize("menu.time-left"), $"{TimeLeft}s") : ("", ""),
+            Search = false,
+            Filters = false,
+            OneColumn = true,
+            ChatExit = false,
+        };
+
+        private List<MapMenuRow> VoteMenuRows(CCSPlayerController player, bool allowRevote)
+        {
+            int total = Math.Max(1, _currentVoteOptions.Sum(o => Votes.GetValueOrDefault(o)));
+            string? mine = _playerVotes.TryGetValue(player.Slot, out var pick) ? pick : null;
+            bool canChange = mine == null || (_endMapConfig.EnableRevote && allowRevote);
+
+            var rows = new List<MapMenuRow>(_currentVoteOptions.Count);
+            foreach (var option in _currentVoteOptions)
+            {
+                int votes = Votes.GetValueOrDefault(option);
+                int percent = votes * 100 / total;
+
+                // Only a map splits into name and detail: "Extend Current Map" is one label
+                var (name, detail) = _mapLister.GetExactMapName(option) is not null ? MapMenu.SplitName(option) : (option, "");
+                bool isMine = option == mine;
+
+                rows.Add(new MapMenuRow(option, name, detail,
+                    _localizer.Localize("menu.tag.vote", votes, percent),
+                    votes > 0 ? MapRowTone.Marked : MapRowTone.None,
+                    Enabled: canChange && !isMine,
+                    Mine: isMine,
+                    Reason: _localizer.Localize(isMine ? "menu.reason.your-vote" : "menu.reason.vote-locked"),
+                    Percent: percent));
             }
 
-            menu.Display(player, durationSeconds);
+            return rows;
         }
 
         public void MapVoted(CCSPlayerController player, string mapName, bool isRtv, bool allowRevote = false)
@@ -533,6 +570,7 @@ namespace cs2_rockthevote
 
             int slot = player.Slot;
             _revoteMenuOpen.Remove(slot);
+            _chatMenuSlots.Remove(slot);
             Hud?.Forget(slot);
 
             if (!_playerVotes.TryGetValue(slot, out var votedMap))
@@ -771,6 +809,7 @@ namespace cs2_rockthevote
             VotedPlayers.Clear();
             _playerVotes.Clear();
             _revoteMenuOpen.Clear();
+            _chatMenuSlots.Clear();
             _currentVoteOptions.Clear();
             _activeVoteIsRtv = isRtv;
             Votes.Clear();
@@ -852,6 +891,9 @@ namespace cs2_rockthevote
             if (Hud != null) Hud.ShrinkAfterVote = _generalConfig.HudShrinkAfterVote;
             Hud?.Show(_currentVoteOptions, isRtv, Votes, _playerVotes);
 
+            // A nominate or votemap list left open now says why it stopped taking clicks
+            _menu.RefreshAll();
+
             foreach (var snapshot in players)
             {
                 int slot = snapshot.Slot;
@@ -861,11 +903,10 @@ namespace cs2_rockthevote
                     if (live is null || !live.ReallyValid())
                         continue;
 
-                    // The HUD replaces the interactive menu entirely - showing both would put a
-                    // WasdMenu back over the top and take the movement keys the HUD exists to leave
-                    // alone.
+                    // The card replaces the menu entirely - showing both would put a mouse menu back
+                    // over the top and take the cursor the card exists to leave alone.
                     if (Hud is null)
-                        DisplayVoteMenu(live, _currentVoteOptions, voteDuration, isRtv, allowRevote: false);
+                        OpenVoteMenu(live, isRtv, allowRevote: false);
 
                     if (_endMapConfig.SoundEnabled)
                     {
@@ -905,6 +946,7 @@ namespace cs2_rockthevote
             {
                 TimeLeft = (int)Math.Ceiling(Math.Max(0.0, voteDeadline - Server.CurrentTime));
                 Hud?.SetTimeLeft(TimeLeft);
+                _menu.Refresh("vote");
 
                 if (TimeLeft <= 0)
                 {
@@ -917,9 +959,12 @@ namespace cs2_rockthevote
 
         private void CloseAllActiveMenus()
         {
-            foreach (var snapshot in ServerManager.ValidPlayers())
+            _menu.Close("vote");
+
+            // Only the players this vote gave a chat menu: CounterStrikeSharp's active menu is per player, not per
+            // plugin, so closing everyone's would close another plugin's menu too.
+            foreach (int slot in _chatMenuSlots)
             {
-                int slot = snapshot.Slot;
                 try
                 {
                     var live = Utilities.GetPlayerFromSlot(slot);
@@ -933,6 +978,8 @@ namespace cs2_rockthevote
                     _logger.LogError(ex, "[RTV.EndMapVote] CloseActiveMenu failed. slot={Slot}", slot);
                 }
             }
+
+            _chatMenuSlots.Clear();
         }
 
         public void EndVote(bool isRtv)
