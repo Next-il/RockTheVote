@@ -13,7 +13,7 @@
 */
 
 .mm-root { width: 760px; }
-.mm-root .hud-title { width: fit-children; font-size: 19px; letter-spacing: 1.8px; white-space: nowrap; }
+.mm-root .hud-title { width: fit-children; font-size: 19px; letter-spacing: 2px; white-space: nowrap; }
 .mm-tag { margin-left: 12px; white-space: nowrap; }
 
 .fill { width: fill-parent-flow(1.0); height: 1px; }
@@ -30,8 +30,8 @@
     vertical-align: bottom;
     margin: 0px 8px 2px 0px;
     font-family: Stratum2 Mono;
-    font-size: 9.5px;
-    letter-spacing: 1.4px;
+    font-size: 11px;
+    letter-spacing: 1px;
     color: #61686f;
     text-transform: uppercase;
     white-space: nowrap;
@@ -41,7 +41,7 @@
     font-family: Stratum2 Medium Condensed;
     font-size: 15px;
     font-weight: bold;
-    letter-spacing: 0.8px;
+    letter-spacing: 1px;
     color: #aeb5bd;
     text-transform: uppercase;
     white-space: nowrap;
@@ -88,7 +88,7 @@
     vertical-align: center;
     margin-left: 10px;
     font-family: Stratum2 Mono;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1px;
     color: #f0a531;
@@ -153,7 +153,7 @@
     width: 100%;
     vertical-align: center;
     font-family: Stratum2 Mono;
-    font-size: 10px;
+    font-size: 11px;
     color: #aeb5bd;
     text-align: center;
     text-transform: uppercase;
@@ -253,7 +253,7 @@
     vertical-align: center;
     font-family: Stratum2 Medium Condensed;
     font-size: 15px;
-    letter-spacing: 0.4px;
+    letter-spacing: 0px;
     color: #e6e9ec;
     white-space: nowrap;
 }
@@ -262,7 +262,7 @@
     vertical-align: center;
     margin-left: 8px;
     font-family: Stratum2 Regular;
-    font-size: 11.5px;
+    font-size: 12px;
     color: #6b737c;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -272,9 +272,9 @@
     vertical-align: center;
     margin-left: 8px;
     font-family: Stratum2 Mono;
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: bold;
-    letter-spacing: 0.6px;
+    letter-spacing: 1px;
     color: #8b939c;
     text-transform: uppercase;
     white-space: nowrap;
@@ -330,8 +330,8 @@
 .mm-hint, .mm-status, .mm-pg-t, .mm-pg-l {
     vertical-align: center;
     font-family: Stratum2 Mono;
-    font-size: 10px;
-    letter-spacing: 0.4px;
+    font-size: 11px;
+    letter-spacing: 0px;
     text-transform: uppercase;
     white-space: nowrap;
 }

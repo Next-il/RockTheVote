@@ -5,9 +5,13 @@
     hittest false on every element) and hides no HUD, so players carry on playing while it is up.
     Voting is done in chat, which is why there is not a single Button in the layout.
 
-    SIZE: root 216 wide. 10px padding each side -> 196 per row: 12 key + 6 + name/bar + 6 + 28 pct.
-    Rows are 22px with 6px between them; the header and footer are one line each. About half the
-    area of the first version (300x375 with 7 maps), and after the viewer votes it folds to two rows.
+    SIZE: root 260 wide. 12px padding each side -> 236 per row: 16 key + 6 + name/bar + 6 + 36 pct.
+    Rows are 26px with 5px between them; the header and footer are one line each. After the viewer
+    votes it folds to two rows.
+
+    TEXT: whole-pixel sizes, 11px and up. The first cut used 8 to 9.5px (and 8.5px) to keep the card
+    small; at 1080p Panorama smears glyphs that small and fractional sizes land between pixels, so
+    every line read blurry in game (owner, 11-23). Letter-spacing is whole pixels for the same reason.
 
     STATES (classes on #RtvVoteRoot, per viewer):
       voted     the hint line goes; with ShrinkAfterVote the plugin also folds every row but the
@@ -18,8 +22,8 @@
 */
 
 .vote-root {
-    width: 216px;
-    padding: 8px 10px 8px 10px;
+    width: 260px;
+    padding: 9px 12px 9px 12px;
     border-left-width: 2px;
 
     /*
@@ -52,9 +56,9 @@
 .vote-title {
     width: fill-parent-flow(1.0);
     font-family: Stratum2 Mono;
-    font-size: 9px;
+    font-size: 12px;
     font-weight: bold;
-    letter-spacing: 1.6px;
+    letter-spacing: 2px;
     text-transform: uppercase;
     color: #f0a531;
     vertical-align: center;
@@ -65,7 +69,7 @@
 /* Mono so the digits do not shuffle the line as they tick down. */
 .vote-time {
     font-family: Stratum2 Mono;
-    font-size: 9px;
+    font-size: 12px;
     font-weight: bold;
     color: #aeb5bc;
     text-align: right;
@@ -79,29 +83,30 @@
 .vote-body {
     flow-children: down;
     width: 100%;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 
 .vote-row {
     flow-children: right;
     width: 100%;
-    height: 22px;
-    margin-bottom: 6px;
+    height: 26px;
+    margin-bottom: 5px;
 }
 .vote-row.fold { visibility: collapse; }
 
 .vote-key {
-    width: 12px;
+    width: 16px;
     font-family: Stratum2 Mono;
-    font-size: 8.5px;
+    font-size: 12px;
     color: #5f676f;
     vertical-align: center;
 }
 
 /* The viewer's own pick: a check where the number was. */
 .vote-you {
-    width: 12px;
-    height: 9px;
+    width: 14px;
+    height: 11px;
+    margin-right: 2px;
     vertical-align: center;
     background-image: url("s2r://panorama/images/icons/ui/check.vsvg");
     background-size: 100% 100%;
@@ -121,8 +126,8 @@
 .vote-name {
     width: 100%;
     font-family: Stratum2 Medium Condensed;
-    font-size: 13px;
-    color: #aeb5bc;
+    font-size: 16px;
+    color: #c3c9cf;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -158,11 +163,11 @@
 .vote-root.st-done .vote-row.leading .vote-bar { background-color: #4caf6d; }
 
 .vote-pct {
-    width: 28px;
+    width: 36px;
     margin-left: 6px;
     font-family: Stratum2 Mono;
-    font-size: 8.5px;
-    color: #6c747d;
+    font-size: 12px;
+    color: #7d858e;
     text-align: right;
     vertical-align: center;
 }
@@ -173,19 +178,19 @@
 .vote-root.notice .vote-key,
 .vote-root.notice .vote-pct,
 .vote-root.notice .vote-track { visibility: collapse; }
-.vote-root.notice .vote-name { font-size: 17px; color: #ffffff; }
+.vote-root.notice .vote-name { font-size: 20px; color: #ffffff; }
 .vote-root.notice .vote-mid { margin-left: 0px; }
 
 /* ------------------------------------------------------------------ hint line */
 
 .vote-hint {
     width: 100%;
-    margin-top: -2px;
+    margin-top: 0px;
     font-family: Stratum2 Mono;
-    font-size: 8px;
+    font-size: 11px;
     letter-spacing: 1px;
     text-transform: uppercase;
-    color: #5f676f;
+    color: #737b84;
 }
 .vote-root.voted .vote-hint { visibility: collapse; }
 /* On the result and the notice the hint line is the subline: when the map changes. */
@@ -194,7 +199,7 @@
     visibility: visible;
     margin-top: 0px;
     font-family: Stratum2 Regular;
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 0px;
     text-transform: none;
     color: #9aa2ac;
